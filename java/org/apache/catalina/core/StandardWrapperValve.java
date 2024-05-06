@@ -39,6 +39,7 @@ import org.apache.coyote.BadRequestException;
 import org.apache.coyote.CloseNowException;
 import org.apache.tomcat.util.ExceptionUtils;
 import org.apache.tomcat.util.buf.MessageBytes;
+import org.apache.tomcat.util.http.InvalidParameterException;
 import org.apache.tomcat.util.log.SystemLogHandler;
 import org.apache.tomcat.util.res.StringManager;
 
@@ -203,6 +204,13 @@ final class StandardWrapperValve extends ValveBase {
             }
             throwable = e;
             exception(request, response, e);
+        } catch (InvalidParameterException e) {
+            if (container.getLogger().isDebugEnabled()) {
+                container.getLogger().debug(
+                        sm.getString("standardWrapper.serviceException", wrapper.getName(), context.getName()), e);
+            }
+            throwable = e;
+            exception(request, response, e, e.getErrorCode());
         } catch (Throwable e) {
             ExceptionUtils.handleThrowable(e);
             container.getLogger()
@@ -282,7 +290,6 @@ final class StandardWrapperValve extends ValveBase {
         exception(request, response, exception, HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
     }
 
-    @SuppressWarnings("deprecation")
     private void exception(Request request, Response response, Throwable exception, int errorCode) {
         request.setAttribute(RequestDispatcher.ERROR_EXCEPTION, exception);
         response.setStatus(errorCode);
