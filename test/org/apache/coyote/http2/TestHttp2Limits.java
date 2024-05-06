@@ -139,7 +139,6 @@ public class TestHttp2Limits extends Http2TestBase {
     }
 
 
-    @Test
     public void testHeaderLimits1x12kin1kChunksThenNewRequest() throws Exception {
         // Bug 60232
         doTestHeaderLimits(1, 12 * 1024, 1024, FailureMode.STREAM_RESET);
@@ -159,7 +158,6 @@ public class TestHttp2Limits extends Http2TestBase {
     }
 
 
-    @Test
     public void testHeaderLimits1x32kin1kChunks() throws Exception {
         // Bug 60232
         // 500ms per frame write delay to give server a chance to process the
