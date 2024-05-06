@@ -49,6 +49,7 @@ public class FailedRequestFilter extends FilterBase {
         return log;
     }
 
+    @SuppressWarnings("deprecation")
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
             throws IOException, ServletException {
@@ -86,7 +87,11 @@ public class FailedRequestFilter extends FilterBase {
                     break;
             }
 
-            ((HttpServletResponse) response).sendError(status);
+            try {
+                ((HttpServletResponse) response).sendError(status);
+            } catch (IllegalStateException e) {
+                // Already committed, ignore
+            }
             return;
         }
         chain.doFilter(request, response);

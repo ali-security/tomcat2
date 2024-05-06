@@ -243,7 +243,7 @@ public abstract class WsRemoteEndpointImplBase implements RemoteEndpoint {
             encoderBuffer.clear();
             CoderResult cr = encoder.encode(part, encoderBuffer, true);
             if (cr.isError()) {
-                throw new IllegalArgumentException(cr.toString());
+                throw new IllegalArgumentException(sm.getString("wsRemoteEndpoint.encoderError", cr));
             }
             isDone = !cr.isOverflow();
             encoderBuffer.flip();
@@ -1232,11 +1232,6 @@ public abstract class WsRemoteEndpointImplBase implements RemoteEndpoint {
                     // NO-OP. Leave state as is.
                 } else if (state == State.STREAM_WRITING) {
                     // NO-OP. Leave state as is.
-                } else {
-                    // Should never happen
-                    // The if ... else ... blocks above should cover all states
-                    // permitted by the preceding checkState() call
-                    throw new IllegalStateException("BUG: This code should never be called");
                 }
             }
         }

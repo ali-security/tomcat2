@@ -42,6 +42,7 @@ import org.apache.tomcat.util.IntrospectionUtils;
 import org.apache.tomcat.util.buf.B2CConverter;
 import org.apache.tomcat.util.buf.CharsetUtil;
 import org.apache.tomcat.util.buf.EncodedSolidusHandling;
+import org.apache.tomcat.util.buf.StringUtils;
 import org.apache.tomcat.util.net.SSLHostConfig;
 import org.apache.tomcat.util.net.openssl.OpenSSLImplementation;
 import org.apache.tomcat.util.res.StringManager;
@@ -209,13 +210,13 @@ public class Connector extends LifecycleMBeanBase {
     protected int maxParameterCount = 10000;
 
     /**
-     * Maximum size of a POST which will be automatically parsed by the container. 2MB by default.
+     * Maximum size of a POST which will be automatically parsed by the container. 2 MiB by default.
      */
     protected int maxPostSize = 2 * 1024 * 1024;
 
 
     /**
-     * Maximum size of a POST which will be saved by the container during authentication. 4kB by default
+     * Maximum size of a POST which will be saved by the container during authentication. 4 KiB by default
      */
     protected int maxSavePostSize = 4 * 1024;
 
@@ -528,7 +529,7 @@ public class Connector extends LifecycleMBeanBase {
         HashSet<String> methodSet = new HashSet<>();
 
         if (null != methods) {
-            methodSet.addAll(Arrays.asList(methods.split("\\s*,\\s*")));
+            methodSet.addAll(Arrays.asList(StringUtils.splitCommaSeparated(methods)));
         }
 
         if (methodSet.contains("TRACE")) {
@@ -1091,27 +1092,28 @@ public class Connector extends LifecycleMBeanBase {
     }
 
 
-    /**
-     * Provide a useful toString() implementation as it may be used when logging Lifecycle errors to identify the
-     * component.
-     */
     @Override
     public String toString() {
         // Not worth caching this right now
         StringBuilder sb = new StringBuilder("Connector[");
-        sb.append(getProtocol());
-        sb.append('-');
-        String id = (protocolHandler != null) ? protocolHandler.getId() : null;
-        if (id != null) {
-            sb.append(id);
-        } else {
-            int port = getPortWithOffset();
-            if (port > 0) {
-                sb.append(port);
+        String name = (String) getProperty("name");
+        if (name == null) {
+            sb.append(getProtocol());
+            sb.append('-');
+            String id = (protocolHandler != null) ? protocolHandler.getId() : null;
+            if (id != null) {
+                sb.append(id);
             } else {
-                sb.append("auto-");
-                sb.append(getProperty("nameIndex"));
+                int port = getPortWithOffset();
+                if (port > 0) {
+                    sb.append(port);
+                } else {
+                    sb.append("auto-");
+                    sb.append(getProperty("nameIndex"));
+                }
             }
+        } else {
+            sb.append(name);
         }
         sb.append(']');
         return sb.toString();

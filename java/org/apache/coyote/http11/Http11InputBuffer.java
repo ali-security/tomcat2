@@ -373,7 +373,7 @@ public class Http11InputBuffer implements InputBuffer, ApplicationBufferHandler 
                     request.setStartTimeNanos(System.nanoTime());
                 }
                 chr = byteBuffer.get();
-            } while ((chr == Constants.CR) || (chr == Constants.LF));
+            } while (chr == Constants.CR || chr == Constants.LF);
             byteBuffer.position(byteBuffer.position() - 1);
 
             parsingRequestLineStart = byteBuffer.position();
@@ -420,7 +420,7 @@ public class Http11InputBuffer implements InputBuffer, ApplicationBufferHandler 
                     }
                 }
                 chr = byteBuffer.get();
-                if (!(chr == Constants.SP || chr == Constants.HT)) {
+                if (chr != Constants.SP && chr != Constants.HT) {
                     space = false;
                     byteBuffer.position(byteBuffer.position() - 1);
                 }
@@ -516,7 +516,7 @@ public class Http11InputBuffer implements InputBuffer, ApplicationBufferHandler 
                     }
                 }
                 byte chr = byteBuffer.get();
-                if (!(chr == Constants.SP || chr == Constants.HT)) {
+                if (chr != Constants.SP && chr != Constants.HT) {
                     space = false;
                     byteBuffer.position(byteBuffer.position() - 1);
                 }
@@ -559,7 +559,7 @@ public class Http11InputBuffer implements InputBuffer, ApplicationBufferHandler 
                 }
             }
 
-            if ((end - parsingRequestLineStart) > 0) {
+            if (end - parsingRequestLineStart > 0) {
                 request.protocol().setBytes(byteBuffer.array(), parsingRequestLineStart, end - parsingRequestLineStart);
                 parsingRequestLinePhase = 7;
             }
@@ -754,8 +754,8 @@ public class Http11InputBuffer implements InputBuffer, ApplicationBufferHandler 
      */
     private boolean fill(boolean block) throws IOException {
 
-        if (log.isDebugEnabled()) {
-            log.debug("Before fill(): parsingHeader: [" + parsingHeader + "], parsingRequestLine: [" +
+        if (log.isTraceEnabled()) {
+            log.trace("Before fill(): parsingHeader: [" + parsingHeader + "], parsingRequestLine: [" +
                     parsingRequestLine + "], parsingRequestLinePhase: [" + parsingRequestLinePhase +
                     "], parsingRequestLineStart: [" + parsingRequestLineStart + "], byteBuffer.position(): [" +
                     byteBuffer.position() + "], byteBuffer.limit(): [" + byteBuffer.limit() + "], end: [" + end + "]");
@@ -806,8 +806,8 @@ public class Http11InputBuffer implements InputBuffer, ApplicationBufferHandler 
             }
         }
 
-        if (log.isDebugEnabled()) {
-            log.debug("Received [" + new String(byteBuffer.array(), byteBuffer.position(), byteBuffer.remaining(),
+        if (log.isTraceEnabled()) {
+            log.trace("Received [" + new String(byteBuffer.array(), byteBuffer.position(), byteBuffer.remaining(),
                     StandardCharsets.ISO_8859_1) + "]");
         }
 
@@ -830,6 +830,12 @@ public class Http11InputBuffer implements InputBuffer, ApplicationBufferHandler 
      */
     private HeaderParseStatus parseHeader() throws IOException {
 
+        /*
+         * Implementation note: Any changes to this method probably need to be echoed in
+         * ChunkedInputFilter.parseHeader(). Why not use a common implementation? In short, this code uses non-blocking
+         * reads whereas ChunkedInputFilter using blocking reads. The code is just different enough that a common
+         * implementation wasn't viewed as practical.
+         */
         while (headerParsePos == HeaderParsePosition.HEADER_START) {
 
             // Read new bytes if needed
@@ -906,7 +912,7 @@ public class Http11InputBuffer implements InputBuffer, ApplicationBufferHandler 
             }
 
             // chr is next byte of header name. Convert to lowercase.
-            if ((chr >= Constants.A) && (chr <= Constants.Z)) {
+            if (chr >= Constants.A && chr <= Constants.Z) {
                 byteBuffer.put(pos, (byte) (chr - Constants.LC_OFFSET));
             }
         }
@@ -936,7 +942,7 @@ public class Http11InputBuffer implements InputBuffer, ApplicationBufferHandler 
                     }
 
                     chr = byteBuffer.get();
-                    if (!(chr == Constants.SP || chr == Constants.HT)) {
+                    if (chr != Constants.SP && chr != Constants.HT) {
                         headerParsePos = HeaderParsePosition.HEADER_VALUE;
                         byteBuffer.position(byteBuffer.position() - 1);
                         // Avoids prevChr = chr at start of header value
@@ -972,7 +978,7 @@ public class Http11InputBuffer implements InputBuffer, ApplicationBufferHandler 
                     } else if (prevChr == Constants.CR) {
                         // Invalid value - also need to delete header
                         return skipLine(true);
-                    } else if (chr != Constants.HT && HttpParser.isControl(chr)) {
+                    } else if (HttpParser.isControl(chr) && chr != Constants.HT) {
                         // Invalid value - also need to delete header
                         return skipLine(true);
                     } else if (chr == Constants.SP || chr == Constants.HT) {
@@ -1002,7 +1008,7 @@ public class Http11InputBuffer implements InputBuffer, ApplicationBufferHandler 
 
             byte peek = byteBuffer.get(byteBuffer.position());
             if (headerParsePos == HeaderParsePosition.HEADER_MULTI_LINE) {
-                if ((peek != Constants.SP) && (peek != Constants.HT)) {
+                if (peek != Constants.SP && peek != Constants.HT) {
                     headerParsePos = HeaderParsePosition.HEADER_START;
                     break;
                 } else {

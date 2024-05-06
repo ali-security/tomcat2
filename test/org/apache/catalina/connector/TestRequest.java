@@ -42,7 +42,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.catalina.Context;
@@ -84,8 +83,6 @@ public class TestRequest extends TomcatBaseTest {
         client.reset();
         client.doRequest(1, false); // 1 byte - too small should fail
         Assert.assertTrue(client.isResponse413());
-
-        client.reset();
 
         // Edge cases around actual content length
         client.reset();
@@ -272,7 +269,7 @@ public class TestRequest extends TomcatBaseTest {
         Tomcat tomcat = getTomcatInstance();
 
         // No file system docBase required
-        Context ctx = tomcat.addContext("", null);
+        Context ctx = getProgrammaticRootContext();
 
         // Add the Servlet
         Tomcat.addServlet(ctx, "servlet", new EchoQueryStringServlet());
@@ -316,7 +313,7 @@ public class TestRequest extends TomcatBaseTest {
         Tomcat tomcat = getTomcatInstance();
 
         // No file system docBase required
-        Context ctx = tomcat.addContext("", null);
+        Context ctx = getProgrammaticRootContext();
 
         LoginConfig config = new LoginConfig();
         config.setAuthMethod("BASIC");
@@ -531,7 +528,7 @@ public class TestRequest extends TomcatBaseTest {
             for(String name: parameters.keySet()) {
                 String[] values = req.getParameterValues(name);
 
-                java.util.Arrays.sort(values);
+                Arrays.sort(values);
 
                 for (String value : values) {
                     if (first) {
@@ -901,34 +898,13 @@ public class TestRequest extends TomcatBaseTest {
 
 
     @Test
-    @Ignore("Used to check performance of different parsing approaches")
-    public void localeParsePerformance() throws Exception {
-        TesterRequest req = new TesterRequest();
-        req.addHeader("accept-encoding", "en-gb,en");
-
-        long start = System.nanoTime();
-
-        // Takes about 0.3s on a quad core 2.7Ghz 2013 MacBook
-        for (int i = 0; i < 10000000; i++) {
-            req.parseLocales();
-            req.localesParsed = false;
-            req.locales.clear();
-        }
-
-        long time = System.nanoTime() - start;
-
-        System.out.println(time);
-    }
-
-
-    @Test
     public void testGetReaderValidEncoding() throws Exception {
         doTestGetReader("ISO-8859-1", true);
     }
 
 
     @Test
-    public void testGetReaderInvalidEbcoding() throws Exception {
+    public void testGetReaderInvalidEncoding() throws Exception {
         doTestGetReader("X-Invalid", false);
     }
 
@@ -940,7 +916,7 @@ public class TestRequest extends TomcatBaseTest {
         Tomcat tomcat = getTomcatInstance();
 
         // No file system docBase required
-        Context ctx = tomcat.addContext("", null);
+        Context ctx = getProgrammaticRootContext();
 
         Tomcat.addServlet(ctx, "servlet", new Bug61264GetReaderServlet());
         ctx.addServletMappingDecoded("/", "servlet");

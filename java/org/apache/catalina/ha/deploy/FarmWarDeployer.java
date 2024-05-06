@@ -17,6 +17,7 @@
 package org.apache.catalina.ha.deploy;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.HashMap;
 
@@ -61,7 +62,7 @@ public class FarmWarDeployer extends ClusterListener implements ClusterDeployer,
     /*--Instance Variables--------------------------------------*/
     protected boolean started = false;
 
-    protected final HashMap<String, FileMessageFactory> fileFactories = new HashMap<>();
+    protected final HashMap<String,FileMessageFactory> fileFactories = new HashMap<>();
 
     /**
      * Deployment directory.
@@ -206,8 +207,8 @@ public class FarmWarDeployer extends ClusterListener implements ClusterDeployer,
         try {
             if (msg instanceof FileMessage) {
                 FileMessage fmsg = (FileMessage) msg;
-                if (log.isDebugEnabled()) {
-                    log.debug(sm.getString("farmWarDeployer.msgRxDeploy", fmsg.getContextName(), fmsg.getFileName()));
+                if (log.isTraceEnabled()) {
+                    log.trace(sm.getString("farmWarDeployer.msgRxDeploy", fmsg.getContextName(), fmsg.getFileName()));
                 }
                 FileMessageFactory factory = getFactory(fmsg);
                 // TODO correct second try after app is in service!
@@ -231,8 +232,8 @@ public class FarmWarDeployer extends ClusterListener implements ClusterDeployer,
                                 removeServiced(contextName);
                             }
                             check(contextName);
-                            if (log.isDebugEnabled()) {
-                                log.debug(sm.getString("farmWarDeployer.deployEnd", contextName));
+                            if (log.isTraceEnabled()) {
+                                log.trace(sm.getString("farmWarDeployer.deployEnd", contextName));
                             }
                         } else {
                             log.error(sm.getString("farmWarDeployer.servicingDeploy", contextName, name));
@@ -247,8 +248,8 @@ public class FarmWarDeployer extends ClusterListener implements ClusterDeployer,
                 try {
                     UndeployMessage umsg = (UndeployMessage) msg;
                     String contextName = umsg.getContextName();
-                    if (log.isDebugEnabled()) {
-                        log.debug(sm.getString("farmWarDeployer.msgRxUndeploy", contextName));
+                    if (log.isTraceEnabled()) {
+                        log.trace(sm.getString("farmWarDeployer.msgRxUndeploy", contextName));
                     }
                     if (tryAddServiced(contextName)) {
                         try {
@@ -256,8 +257,8 @@ public class FarmWarDeployer extends ClusterListener implements ClusterDeployer,
                         } finally {
                             removeServiced(contextName);
                         }
-                        if (log.isDebugEnabled()) {
-                            log.debug(sm.getString("farmWarDeployer.undeployEnd", contextName));
+                        if (log.isTraceEnabled()) {
+                            log.trace(sm.getString("farmWarDeployer.undeployEnd", contextName));
                         }
                     } else {
                         log.error(sm.getString("farmWarDeployer.servicingUndeploy", contextName));
@@ -266,7 +267,7 @@ public class FarmWarDeployer extends ClusterListener implements ClusterDeployer,
                     log.error(sm.getString("farmWarDeployer.undeployMessageError"), ex);
                 }
             }
-        } catch (java.io.IOException x) {
+        } catch (IOException x) {
             log.error(sm.getString("farmWarDeployer.msgIoe"), x);
         }
     }
@@ -278,11 +279,10 @@ public class FarmWarDeployer extends ClusterListener implements ClusterDeployer,
      *
      * @return Factory for all app message (war files)
      *
-     * @throws java.io.FileNotFoundException Missing file error
-     * @throws java.io.IOException           Other IO error
+     * @throws FileNotFoundException Missing file error
+     * @throws IOException           Other IO error
      */
-    public synchronized FileMessageFactory getFactory(FileMessage msg)
-            throws java.io.FileNotFoundException, java.io.IOException {
+    public synchronized FileMessageFactory getFactory(FileMessage msg) throws FileNotFoundException, IOException {
         File writeToFile = new File(getTempDirFile(), msg.getFileName());
         FileMessageFactory factory = fileFactories.get(msg.getFileName());
         if (factory == null) {
@@ -303,17 +303,12 @@ public class FarmWarDeployer extends ClusterListener implements ClusterDeployer,
     }
 
     /**
-     * Before the cluster invokes messageReceived the cluster will ask the receiver to accept or decline the message, In
-     * the future, when messages get big, the accept method will only take a message header
-     *
-     * @param msg ClusterMessage
-     *
-     * @return boolean - returns true to indicate that messageReceived should be invoked. If false is returned, the
-     *             messageReceived method will not be invoked.
+     * {@inheritDoc}
+     * This listener accepts only FileMessage or UndeployMessage.
      */
     @Override
     public boolean accept(ClusterMessage msg) {
-        return (msg instanceof FileMessage) || (msg instanceof UndeployMessage);
+        return msg instanceof FileMessage || msg instanceof UndeployMessage;
     }
 
     /**
@@ -340,21 +335,21 @@ public class FarmWarDeployer extends ClusterListener implements ClusterDeployer,
         Member localMember = getCluster().getLocalMember();
         FileMessageFactory factory = FileMessageFactory.getInstance(webapp, false);
         FileMessage msg = new FileMessage(localMember, webapp.getName(), contextName);
-        if (log.isDebugEnabled()) {
-            log.debug(sm.getString("farmWarDeployer.sendStart", contextName, webapp));
+        if (log.isTraceEnabled()) {
+            log.trace(sm.getString("farmWarDeployer.sendStart", contextName, webapp));
         }
         msg = factory.readMessage(msg);
         while (msg != null) {
             for (Member member : members) {
-                if (log.isDebugEnabled()) {
-                    log.debug(sm.getString("farmWarDeployer.sendFragment", contextName, webapp, member));
+                if (log.isTraceEnabled()) {
+                    log.trace(sm.getString("farmWarDeployer.sendFragment", contextName, webapp, member));
                 }
                 getCluster().send(msg, member);
             }
             msg = factory.readMessage(msg);
         }
-        if (log.isDebugEnabled()) {
-            log.debug(sm.getString("farmWarDeployer.sendEnd", contextName, webapp));
+        if (log.isTraceEnabled()) {
+            log.trace(sm.getString("farmWarDeployer.sendEnd", contextName, webapp));
         }
     }
 
@@ -381,8 +376,8 @@ public class FarmWarDeployer extends ClusterListener implements ClusterDeployer,
             Member localMember = getCluster().getLocalMember();
             UndeployMessage msg = new UndeployMessage(localMember, System.currentTimeMillis(),
                     "Undeploy:" + contextName + ":" + System.currentTimeMillis(), contextName);
-            if (log.isDebugEnabled()) {
-                log.debug(sm.getString("farmWarDeployer.removeTxMsg", contextName));
+            if (log.isTraceEnabled()) {
+                log.trace(sm.getString("farmWarDeployer.removeTxMsg", contextName));
             }
             cluster.send(msg);
         }
@@ -407,11 +402,6 @@ public class FarmWarDeployer extends ClusterListener implements ClusterDeployer,
 
     }
 
-    /**
-     * Modification from watchDir war detected!
-     *
-     * @see org.apache.catalina.ha.deploy.FileChangeListener#fileModified(File)
-     */
     @Override
     public void fileModified(File newWar) {
         try {
@@ -443,11 +433,6 @@ public class FarmWarDeployer extends ClusterListener implements ClusterDeployer,
         }
     }
 
-    /**
-     * War remove from watchDir
-     *
-     * @see org.apache.catalina.ha.deploy.FileChangeListener#fileRemoved(File)
-     */
     @Override
     public void fileRemoved(File removeWar) {
         try {
@@ -586,16 +571,6 @@ public class FarmWarDeployer extends ClusterListener implements ClusterDeployer,
     }
 
     /*--Instance Getters/Setters--------------------------------*/
-    @Override
-    public boolean equals(Object listener) {
-        return super.equals(listener);
-    }
-
-    @Override
-    public int hashCode() {
-        return super.hashCode();
-    }
-
     public String getDeployDir() {
         return deployDir;
     }

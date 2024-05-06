@@ -26,9 +26,13 @@ import java.nio.charset.StandardCharsets;
  *
  * <p>This class is immutable and thread-safe.</p>
  *
- * @see <a href="http://download.oracle.com/javase/7/docs/api/java/nio/charset/Charset.html">Standard charsets</a>
+ * @see Charset
+ * @see StandardCharsets
  * @since 1.4
+ *
+ * @deprecated Unused. This class will be removed in Tomcat 11 onwards.
  */
+@Deprecated
 public class StringUtils {
 
     /**
@@ -55,7 +59,7 @@ public class StringUtils {
      *             Thrown if {@link StandardCharsets#UTF_8} is not initialized, which should never happen
      *             since it is required by the Java platform specification.
      * @since As of 1.7, throws {@link NullPointerException} instead of UnsupportedEncodingException
-     * @see <a href="http://download.oracle.com/javase/7/docs/api/java/nio/charset/Charset.html">Standard charsets</a>
+     * @see Charset
      */
     public static byte[] getBytesUtf8(final String string) {
         return getBytes(string, StandardCharsets.UTF_8);
@@ -107,5 +111,9 @@ public class StringUtils {
      */
     public static String newStringUtf8(final byte[] bytes) {
         return newString(bytes, StandardCharsets.UTF_8);
+    }
+
+    private StringUtils() {
+        // empty
     }
 }

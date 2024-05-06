@@ -338,8 +338,9 @@
     <li><b><code>%{xxx}t</code></b> write timestamp at the end of the request formatted using the
         enhanced SimpleDateFormat pattern <code>xxx</code></li>
     <li><b><code>%{xxx}T</code></b> write time taken to process the request using unit <code>xxx</code>
-        where valid units are <code>ms</code> for milliseconds, <code>us</code> for microseconds,
-        and <code>s</code> for seconds. <code>%{s}T</code> is equivalent to <code>%T</code> as well
+        where valid units are <code>ns</code> for nanoseconds, <code>us</code> for microseconds,
+        <code>ms</code> for milliseconds, <code>fracsec</code> for fractional seconds, or <code>s</code> for whole seconds.
+        <code>%{s}T</code> is equivalent to <code>%T</code> as well
         as <code>%{us}T</code> is equivalent to <code>%D</code>.</li>
     </ul>
 
@@ -465,7 +466,9 @@
     <li><b>s-ip</b> - Local IP address</li>
     <li><b>sc-status</b> - HTTP status code of the response</li>
     <li><b>time</b> - Time the request was served in HH:mm:ss format for GMT</li>
-    <li><b>time-taken</b> - Time (in seconds as floating point) taken to serve the request</li>
+    <li><b>time-taken</b> - Time (in seconds) taken to serve the request. Can also use the
+      suffixes <code>-ns</code> for nanoseconds, <code>-us</code> for microseconds,
+      <code>-ms</code> for milliseconds, <code>-fracsec</code> for fractional seconds.</li>
     <li><b>x-threadname</b> - Current request thread name (can compare later with stacktraces)</li>
     </ul>
 
@@ -1562,7 +1565,9 @@
       <attribute name="trimCredentials" required="false">
         <p>Controls whether leading and/or trailing whitespace is removed from
         the parsed credentials. If not specified, the default value is
-        <code>true</code>.</p>
+        <code>false</code>.
+        </p>
+        <p>Note: This attribute will be removed from Tomcat 11 onwards.</p>
       </attribute>
 
     </attributes>
@@ -1593,7 +1598,7 @@
 
     <attributes>
 
-      <attribute name="algoirthms" required="false">
+      <attribute name="algorithms" required="false">
         <p>A comma-separated list of digest algorithms to be used for the
         authentication process. Algorithms may be specified using the Java
         Standard names or the names used by RFC 7616. If not specified, the
@@ -2553,6 +2558,13 @@
       <attribute name="fairness" required="false">
         <p>Fairness of the semaphore. The default value is
         <strong>false</strong>.</p>
+      </attribute>
+
+      <attribute name="highConcurrencyStatus" required="false">
+        <p>The error status code which will be returned to the client, if the
+        value is positive, when a permit cannot be acquired from the
+        sepmaphore. The default value is <strong>-1</strong>, which will mean
+        no error status will be sent back.</p>
       </attribute>
 
       <attribute name="interruptible" required="false">

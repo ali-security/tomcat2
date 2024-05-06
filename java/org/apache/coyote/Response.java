@@ -288,7 +288,9 @@ public final class Response {
      * @param ex The exception that occurred
      */
     public void setErrorException(Exception ex) {
-        errorException = ex;
+        if (errorException == null) {
+            errorException = ex;
+        }
     }
 
 
@@ -311,7 +313,10 @@ public final class Response {
      * Set the error flag.
      *
      * @return <code>false</code> if the error flag was already set
+     *
+     * @deprecated This method will be changed to return void in Tomcat 11 onwards
      */
+    @Deprecated
     public boolean setError() {
         return errorState.compareAndSet(0, 1);
     }
@@ -334,6 +339,11 @@ public final class Response {
 
     public boolean setErrorReported() {
         return errorState.compareAndSet(1, 2);
+    }
+
+
+    public void resetError() {
+        errorState.set(0);
     }
 
 
@@ -629,8 +639,8 @@ public final class Response {
         committed = false;
         commitTimeNanos = -1;
         errorException = null;
-        errorState.set(0);
-        headers.clear();
+        resetError();
+        headers.recycle();
         trailerFieldsSupplier = null;
         // Servlet 3.1 non-blocking write listener
         listener = null;

@@ -107,7 +107,7 @@ public abstract class AbstractFileResourceSet extends AbstractResourceSet {
         // absoluteBase has been normalized so absPath needs to be normalized as
         // well.
         String absPath = normalize(file.getAbsolutePath());
-        if (absoluteBase.length() > absPath.length()) {
+        if (absPath == null || absoluteBase.length() > absPath.length()) {
             return null;
         }
 
@@ -116,6 +116,11 @@ public abstract class AbstractFileResourceSet extends AbstractResourceSet {
         // applies to the request path
         absPath = absPath.substring(absoluteBase.length());
         canPath = canPath.substring(canonicalBase.length());
+
+        // The remaining request path must start with '/' if it has non-zero length
+        if (canPath.length() > 0 && canPath.charAt(0) != File.separatorChar) {
+            return null;
+        }
 
         // Case sensitivity check
         // The normalized requested path should be an exact match the equivalent

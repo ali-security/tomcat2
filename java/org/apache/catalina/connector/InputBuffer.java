@@ -18,6 +18,7 @@ package org.apache.catalina.connector;
 
 import java.io.IOException;
 import java.io.Reader;
+import java.net.SocketTimeoutException;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
@@ -29,10 +30,12 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import jakarta.servlet.ReadListener;
+import jakarta.servlet.RequestDispatcher;
+import jakarta.servlet.http.HttpServletResponse;
 
 import org.apache.catalina.security.SecurityUtil;
 import org.apache.coyote.ActionCode;
-import org.apache.coyote.Request;
+import org.apache.coyote.BadRequestException;
 import org.apache.juli.logging.Log;
 import org.apache.juli.logging.LogFactory;
 import org.apache.tomcat.util.buf.B2CConverter;
@@ -106,7 +109,7 @@ public class InputBuffer extends Reader implements ByteChunk.ByteInputChannel, A
     /**
      * Associated Coyote request.
      */
-    private Request coyoteRequest;
+    private org.apache.coyote.Request coyoteRequest;
 
 
     /**
@@ -165,7 +168,7 @@ public class InputBuffer extends Reader implements ByteChunk.ByteInputChannel, A
      *
      * @param coyoteRequest Associated Coyote request
      */
-    public void setRequest(Request coyoteRequest) {
+    public void setRequest(org.apache.coyote.Request coyoteRequest) {
         this.coyoteRequest = coyoteRequest;
     }
 
@@ -199,11 +202,6 @@ public class InputBuffer extends Reader implements ByteChunk.ByteInputChannel, A
     }
 
 
-    /**
-     * Close the input buffer.
-     *
-     * @throws IOException An underlying IOException occurred
-     */
     @Override
     public void close() throws IOException {
         closed = true;
@@ -291,17 +289,9 @@ public class InputBuffer extends Reader implements ByteChunk.ByteInputChannel, A
 
     // ------------------------------------------------- Bytes Handling Methods
 
-    /**
-     * Reads new bytes in the byte chunk.
-     *
-     * @throws IOException An underlying IOException occurred
-     */
     @Override
     public int realReadBytes() throws IOException {
         if (closed) {
-            return -1;
-        }
-        if (coyoteRequest == null) {
             return -1;
         }
 
@@ -311,11 +301,43 @@ public class InputBuffer extends Reader implements ByteChunk.ByteInputChannel, A
 
         try {
             return coyoteRequest.doRead(this);
+        } catch (BadRequestException bre) {
+            // Make the exception visible to the application
+            handleReadException(bre);
+            throw bre;
         } catch (IOException ioe) {
-            coyoteRequest.setErrorException(ioe);
-            // An IOException on a read is almost always due to
-            // the remote client aborting the request.
+            handleReadException(ioe);
+            // Any other IOException on a read is almost always due to the remote client aborting the request.
+            // Make the exception visible to the application
             throw new ClientAbortException(ioe);
+        }
+    }
+
+
+    @SuppressWarnings("deprecation")
+    private void handleReadException(Exception e) throws IOException {
+        // Set flag used by asynchronous processing to detect errors on non-container threads
+        coyoteRequest.setErrorException(e);
+        // In synchronous processing, this exception may be swallowed by the application so set error flags here.
+        Request request = (Request) coyoteRequest.getNote(CoyoteAdapter.ADAPTER_NOTES);
+        Response response = request.getResponse();
+        request.setAttribute(RequestDispatcher.ERROR_EXCEPTION, e);
+        if (e instanceof SocketTimeoutException) {
+            try {
+                response.sendError(HttpServletResponse.SC_REQUEST_TIMEOUT);
+            } catch(IllegalStateException ex) {
+                // Response already committed
+                response.setStatus(HttpServletResponse.SC_REQUEST_TIMEOUT);
+                response.setError();
+            }
+        } else {
+            try {
+                response.sendError(HttpServletResponse.SC_BAD_REQUEST);
+            } catch(IllegalStateException ex) {
+                // Response already committed
+                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+                response.setError();
+            }
         }
     }
 
@@ -531,10 +553,7 @@ public class InputBuffer extends Reader implements ByteChunk.ByteInputChannel, A
             return;
         }
 
-        Charset charset = null;
-        if (coyoteRequest != null) {
-            charset = coyoteRequest.getCharset();
-        }
+        Charset charset = coyoteRequest.getCharset();
 
         if (charset == null) {
             charset = org.apache.coyote.Constants.DEFAULT_BODY_CHARSET;

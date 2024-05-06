@@ -28,9 +28,10 @@ mvn.properties
 .classpath
 .externalToolBuilders
 .fbprefs
-.project
-.settings
 .idea
+.project
+.sdkmanrc
+.settings
 .vscode
 *.iml
 *.ipr
@@ -38,6 +39,7 @@ mvn.properties
 *.asc
 *.jj
 *.tmp
+.*.s[a-w][a-z]
 maven-resolver-ant-tasks-*.jar
 thumbs.db
 Thumbs.db
@@ -45,4 +47,5 @@ bin/setenv.*
 java/org/apache/catalina/startup/catalina.properties
 modules/jdbc-pool/bin
 modules/jdbc-pool/includes
+modules/openssl-foreign/target
 webapps/docs/jdbc-pool.xml

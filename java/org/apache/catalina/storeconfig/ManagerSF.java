@@ -31,11 +31,6 @@ public class ManagerSF extends StoreFactoryBase {
 
     private static Log log = LogFactory.getLog(ManagerSF.class);
 
-    /**
-     * Store the only the Manager elements
-     *
-     * @see NamingResourcesSF#storeChildren(PrintWriter, int, Object, StoreDescription)
-     */
     @Override
     public void store(PrintWriter aWriter, int indent, Object aElement)
             throws Exception {
@@ -45,8 +40,8 @@ public class ManagerSF extends StoreFactoryBase {
             if (aElement instanceof StandardManager) {
                 StandardManager manager = (StandardManager) aElement;
                 if (!isDefaultManager(manager)) {
-                    if (log.isDebugEnabled()) {
-                        log.debug(sm.getString("factory.storeTag", elementDesc
+                    if (log.isTraceEnabled()) {
+                        log.trace(sm.getString("factory.storeTag", elementDesc
                                 .getTag(), aElement));
                     }
                     super.store(aWriter, indent, aElement);

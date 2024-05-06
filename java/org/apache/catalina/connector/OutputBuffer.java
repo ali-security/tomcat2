@@ -235,9 +235,7 @@ public class OutputBuffer extends Writer {
         if ((!coyoteResponse.isCommitted()) && (coyoteResponse.getContentLengthLong() == -1)) {
             // If this didn't cause a commit of the response, the final content
             // length can be calculated.
-            if (!coyoteResponse.isCommitted()) {
-                coyoteResponse.setContentLength(bb.remaining());
-            }
+            coyoteResponse.setContentLength(bb.remaining());
         }
 
         if (coyoteResponse.getStatus() == HttpServletResponse.SC_SWITCHING_PROTOCOLS) {
@@ -323,9 +321,6 @@ public class OutputBuffer extends Writer {
         if (closed) {
             return;
         }
-        if (coyoteResponse == null) {
-            return;
-        }
 
         // If we really have something to write
         if (buf.remaining() > 0) {
@@ -343,7 +338,6 @@ public class OutputBuffer extends Writer {
                 // An IOException on a write is almost always due to
                 // the remote client aborting the request. Wrap this
                 // so that it can be handled better by the error dispatcher.
-                coyoteResponse.setErrorException(e);
                 throw new ClientAbortException(e);
             }
         }
@@ -550,11 +544,7 @@ public class OutputBuffer extends Writer {
             return;
         }
 
-        Charset charset = null;
-
-        if (coyoteResponse != null) {
-            charset = coyoteResponse.getCharset();
-        }
+        Charset charset = coyoteResponse.getCharset();
 
         if (charset == null) {
             if (coyoteResponse.getCharacterEncoding() != null) {
@@ -739,6 +729,12 @@ public class OutputBuffer extends Writer {
             }
         }
     }
+
+
+    public void setErrorException(Exception e) {
+        coyoteResponse.setErrorException(e);
+    }
+
 
     private void appendByteArray(byte src[], int off, int len) throws IOException {
         if (len == 0) {

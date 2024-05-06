@@ -54,39 +54,22 @@ public class StoreFactoryBase implements IStoreFactory {
         return info;
     }
 
-    /**
-     * @return Returns the storeAppender.
-     */
     @Override
     public StoreAppender getStoreAppender() {
         return storeAppender;
     }
 
-    /**
-     * @param storeAppender
-     *            The storeAppender to set.
-     */
     @Override
     public void setStoreAppender(StoreAppender storeAppender) {
         this.storeAppender = storeAppender;
     }
 
-    /**
-     * Set Registry
-     *
-     * @see org.apache.catalina.storeconfig.IStoreFactory#setRegistry(org.apache.catalina.storeconfig.StoreRegistry)
-     */
     @Override
     public void setRegistry(StoreRegistry aRegistry) {
         registry = aRegistry;
 
     }
 
-    /**
-     * get Registry
-     *
-     * @see org.apache.catalina.storeconfig.IStoreFactory#getRegistry()
-     */
     @Override
     public StoreRegistry getRegistry() {
 
@@ -101,12 +84,6 @@ public class StoreFactoryBase implements IStoreFactory {
         aWriter.println("\"?>");
     }
 
-    /**
-     * Store a server.xml element with attributes and children
-     *
-     * @see org.apache.catalina.storeconfig.IStoreFactory#store(java.io.PrintWriter,
-     *      int, java.lang.Object)
-     */
     @Override
     public void store(PrintWriter aWriter, int indent, Object aElement)
             throws Exception {
@@ -115,8 +92,8 @@ public class StoreFactoryBase implements IStoreFactory {
                 aElement.getClass());
 
         if (elementDesc != null) {
-            if (log.isDebugEnabled()) {
-                log.debug(sm.getString("factory.storeTag",
+            if (log.isTraceEnabled()) {
+                log.trace(sm.getString("factory.storeTag",
                         elementDesc.getTag(), aElement));
             }
             getStoreAppender().printIndent(aWriter, indent + 2);
@@ -167,8 +144,13 @@ public class StoreFactoryBase implements IStoreFactory {
             if (elementFactory != null) {
                 StoreDescription desc = getRegistry().findDescription(
                         aTagElement.getClass());
-                if (!desc.isTransientChild(aTagElement.getClass().getName())) {
-                    elementFactory.store(aWriter, indent, aTagElement);
+                if (desc != null) {
+                    if (!desc.isTransientChild(aTagElement.getClass().getName())) {
+                        elementFactory.store(aWriter, indent, aTagElement);
+                    }
+                } else {
+                    log.warn(sm.getString("factory.storeNoDescriptor", aTagElement
+                            .getClass()));
                 }
             } else {
                 log.warn(sm.getString("factory.storeNoDescriptor", aTagElement

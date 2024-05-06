@@ -596,6 +596,13 @@
         attribute is <code>false</code>.</p>
       </attribute>
 
+      <attribute name="suspendWrappedResponseAfterForward" required="false">
+        <p>If the value of this flag is <code>true</code>, Catalina will
+        suspend wrapped responses after a forward, instead of closing them.
+        If not specified, the default value of the flag is
+        <code>false</code>.</p>
+      </attribute>
+
       <attribute name="swallowAbortedUploads" required="false">
         <p>Set to <code>false</code> if Tomcat should <b>not</b> read any
         additional request body data for aborted uploads and instead abort the
@@ -652,6 +659,13 @@
        <p>Should the HttpOnly flag be set on session cookies to prevent client
           side script from accessing the session ID? Defaults to
           <code>true</code>.</p>
+      </attribute>
+
+      <attribute name="usePartitioned" required="false">
+       <p>Should the Partitioned flag be set on session cookies? Defaults to <code>false</code>.</p>
+       <p>Note: The name of the attribute used to indicate a partitioned cookie as part of
+       <a href="https://developers.google.com/privacy-sandbox/3pcd#partitioned">CHIPS</a> is not defined by an RFC and
+       may change in a non-backwards compatible way once equivalent functionality is included in an RFC.</p>
       </attribute>
 
       <attribute name="useRelativeRedirects" required="false">

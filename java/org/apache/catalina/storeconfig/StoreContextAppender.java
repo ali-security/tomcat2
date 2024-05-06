@@ -53,10 +53,7 @@ public class StoreContextAppender extends StoreAppender {
      * Print Context Values. <ul><li> Special handling to default workDir.
      * </li><li> Don't save path at external context.xml </li><li> Don't
      * generate docBase for host.appBase webapps <LI></ul>
-     *
-     * @see org.apache.catalina.storeconfig.StoreAppender#isPrintValue(java.lang.Object,
-     *      java.lang.Object, java.lang.String,
-     *      org.apache.catalina.storeconfig.StoreDescription)
+     * {@inheritDoc}
      */
     @Override
     public boolean isPrintValue(Object bean, Object bean2, String attrName,
@@ -66,7 +63,9 @@ public class StoreContextAppender extends StoreAppender {
             StandardContext context = ((StandardContext) bean);
             if ("workDir".equals(attrName)) {
                 String defaultWorkDir = getDefaultWorkDir(context);
-                isPrint = !defaultWorkDir.equals(context.getWorkDir());
+                if (defaultWorkDir != null) {
+                    isPrint = !defaultWorkDir.equals(context.getWorkDir());
+                }
             } else if ("path".equals(attrName)) {
                 isPrint = desc.isStoreSeparate()
                             && desc.isExternalAllowed()

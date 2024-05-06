@@ -127,7 +127,11 @@ public abstract class ManagerBase extends LifecycleMBeanBase implements Manager 
      */
     protected Map<String,Session> sessions = new ConcurrentHashMap<>();
 
-    // Number of sessions created by this manager
+    /**
+     * Number of sessions created by this manager.
+     * @deprecated This will be removed in Tomcat 11
+     */
+    @Deprecated
     protected long sessionCounter = 0;
 
     protected volatile int maxActive = 0;
@@ -144,7 +148,11 @@ public abstract class ManagerBase extends LifecycleMBeanBase implements Manager 
      */
     protected int rejectedSessions = 0;
 
-    // number of duplicated session ids - anything >0 means we have problems
+    /**
+     * Number of duplicated session ids, anything > 0 means we have problems.
+     * @deprecated This will be removed in Tomcat 11
+     */
+    @Deprecated
     protected volatile int duplicates = 0;
 
     /**
@@ -587,8 +595,8 @@ public abstract class ManagerBase extends LifecycleMBeanBase implements Manager 
         Session sessions[] = findSessions();
         int expireHere = 0;
 
-        if (log.isDebugEnabled()) {
-            log.debug("Start expire sessions " + getName() + " at " + timeNow + " sessioncount " + sessions.length);
+        if (log.isTraceEnabled()) {
+            log.trace("Start expire sessions " + getName() + " at " + timeNow + " sessioncount " + sessions.length);
         }
         for (Session session : sessions) {
             if (session != null && !session.isValid()) {
@@ -596,8 +604,8 @@ public abstract class ManagerBase extends LifecycleMBeanBase implements Manager 
             }
         }
         long timeEnd = System.currentTimeMillis();
-        if (log.isDebugEnabled()) {
-            log.debug("End expire sessions " + getName() + " processingTime " + (timeEnd - timeNow) +
+        if (log.isTraceEnabled()) {
+            log.trace("End expire sessions " + getName() + " processingTime " + (timeEnd - timeNow) +
                     " expired sessions: " + expireHere);
         }
         processingTime += (timeEnd - timeNow);
@@ -620,11 +628,15 @@ public abstract class ManagerBase extends LifecycleMBeanBase implements Manager 
 
         // Ensure caches for timing stats are the right size by filling with
         // nulls.
-        while (sessionCreationTiming.size() < TIMING_STATS_CACHE_SIZE) {
-            sessionCreationTiming.add(null);
+        synchronized (sessionCreationTiming) {
+            while (sessionCreationTiming.size() < TIMING_STATS_CACHE_SIZE) {
+                sessionCreationTiming.add(null);
+            }
         }
-        while (sessionExpirationTiming.size() < TIMING_STATS_CACHE_SIZE) {
-            sessionExpirationTiming.add(null);
+        synchronized (sessionExpirationTiming) {
+            while (sessionExpirationTiming.size() < TIMING_STATS_CACHE_SIZE) {
+                sessionExpirationTiming.add(null);
+            }
         }
 
         /* Create sessionIdGenerator if not explicitly configured */
@@ -646,12 +658,12 @@ public abstract class ManagerBase extends LifecycleMBeanBase implements Manager 
             ((Lifecycle) sessionIdGenerator).start();
         } else {
             // Force initialization of the random number generator
-            if (log.isDebugEnabled()) {
-                log.debug("Force random number initialization starting");
+            if (log.isTraceEnabled()) {
+                log.trace("Force random number initialization starting");
             }
             sessionIdGenerator.generateSessionId();
-            if (log.isDebugEnabled()) {
-                log.debug("Force random number initialization completed");
+            if (log.isTraceEnabled()) {
+                log.trace("Force random number initialization completed");
             }
         }
     }
@@ -706,7 +718,6 @@ public abstract class ManagerBase extends LifecycleMBeanBase implements Manager 
             id = generateSessionId();
         }
         session.setId(id);
-        sessionCounter++;
 
         SessionTiming timing = new SessionTiming(session.getCreationTime(), 0);
         synchronized (sessionCreationTiming) {
@@ -859,22 +870,7 @@ public abstract class ManagerBase extends LifecycleMBeanBase implements Manager 
      * @return a new session id
      */
     protected String generateSessionId() {
-
-        String result = null;
-
-        do {
-            if (result != null) {
-                // Not thread-safe but if one of multiple increments is lost
-                // that is not a big deal since the fact that there was any
-                // duplicate is a much bigger issue.
-                duplicates++;
-            }
-
-            result = sessionIdGenerator.generateSessionId();
-
-        } while (sessions.containsKey(result));
-
-        return result;
+        return sessionIdGenerator.generateSessionId();
     }
 
 
@@ -919,7 +915,7 @@ public abstract class ManagerBase extends LifecycleMBeanBase implements Manager 
 
     @Override
     public long getSessionCounter() {
-        return sessionCounter;
+        return getActiveSessions() + getExpiredSessions();
     }
 
 
@@ -927,12 +923,20 @@ public abstract class ManagerBase extends LifecycleMBeanBase implements Manager 
      * Number of duplicated session IDs generated by the random source. Anything bigger than 0 means problems.
      *
      * @return The count of duplicates
+     * @deprecated This will be removed in Tomcat 11
      */
+    @Deprecated
     public int getDuplicates() {
         return duplicates;
     }
 
 
+    /**
+     * Set duplicates count.
+     * @param duplicates the new duplicates count
+     * @deprecated This will be removed in Tomcat 11
+     */
+    @Deprecated
     public void setDuplicates(int duplicates) {
         this.duplicates = duplicates;
     }

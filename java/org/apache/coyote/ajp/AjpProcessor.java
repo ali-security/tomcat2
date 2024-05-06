@@ -26,9 +26,11 @@ import java.security.NoSuchProviderException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -374,7 +376,7 @@ public class AjpProcessor extends AbstractProcessor {
                         socketWrapper.flush(true);
                     } catch (IOException e) {
                         if (getLog().isDebugEnabled()) {
-                            getLog().debug("Pong message failed", e);
+                            getLog().debug(sm.getString("ajpprocessor.pongFail"), e);
                         }
                         setErrorState(ErrorState.CLOSE_CONNECTION_NOW, e);
                     }
@@ -384,7 +386,7 @@ public class AjpProcessor extends AbstractProcessor {
                     // Unexpected packet type. Unread body packets should have
                     // been swallowed in finish().
                     if (getLog().isDebugEnabled()) {
-                        getLog().debug("Unexpected message: " + type);
+                        getLog().debug(sm.getString("ajpprocessor.unexpectedMessage", Integer.toString(type)));
                     }
                     setErrorState(ErrorState.CLOSE_CONNECTION_NOW, null);
                     break;
@@ -796,11 +798,12 @@ public class AjpProcessor extends AbstractProcessor {
                     break;
 
                 case Constants.SC_A_AUTH_TYPE:
-                    if (protocol.getTomcatAuthentication()) {
-                        // ignore server
-                        requestHeaderMessage.getBytes(tmpMB);
-                    } else {
+                    if (protocol.getTomcatAuthorization() || !protocol.getTomcatAuthentication()) {
+                        // Implies tomcatAuthentication == false
                         requestHeaderMessage.getBytes(request.getAuthType());
+                    } else {
+                        // Ignore user information from reverse proxy
+                        requestHeaderMessage.getBytes(tmpMB);
                     }
                     break;
 
@@ -1131,10 +1134,10 @@ public class AjpProcessor extends AbstractProcessor {
     @Override
     protected final void populateSslRequestAttributes() {
         if (!certificates.isNull()) {
+            List<X509Certificate> jsseCerts = new ArrayList<>();
             ByteChunk certData = certificates.getByteChunk();
-            X509Certificate jsseCerts[] = null;
-            ByteArrayInputStream bais = new ByteArrayInputStream(certData.getBytes(), certData.getStart(),
-                    certData.getLength());
+            ByteArrayInputStream bais =
+                    new ByteArrayInputStream(certData.getBytes(), certData.getStart(), certData.getLength());
             // Fill the elements.
             try {
                 CertificateFactory cf;
@@ -1146,21 +1149,13 @@ public class AjpProcessor extends AbstractProcessor {
                 }
                 while (bais.available() > 0) {
                     X509Certificate cert = (X509Certificate) cf.generateCertificate(bais);
-                    if (jsseCerts == null) {
-                        jsseCerts = new X509Certificate[1];
-                        jsseCerts[0] = cert;
-                    } else {
-                        X509Certificate[] temp = new X509Certificate[jsseCerts.length + 1];
-                        System.arraycopy(jsseCerts, 0, temp, 0, jsseCerts.length);
-                        temp[jsseCerts.length] = cert;
-                        jsseCerts = temp;
-                    }
+                    jsseCerts.add(cert);
                 }
             } catch (CertificateException | NoSuchProviderException e) {
                 getLog().error(sm.getString("ajpprocessor.certs.fail"), e);
                 return;
             }
-            request.setAttribute(SSLSupport.CERTIFICATE_KEY, jsseCerts);
+            request.setAttribute(SSLSupport.CERTIFICATE_KEY, jsseCerts.toArray(new X509Certificate[0]));
         }
     }
 

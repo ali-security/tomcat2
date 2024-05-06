@@ -76,7 +76,9 @@ public interface Manager {
 
 
     /**
-     * Returns the total number of sessions created by this manager.
+     * Returns the total number of sessions created by this manager, which is
+     * approximated as the number of active sessions plus the number of
+     * expired sessions.
      *
      * @return Total number of sessions created by this manager.
      */
@@ -87,7 +89,9 @@ public interface Manager {
      * Sets the total number of sessions created by this manager.
      *
      * @param sessionCounter Total number of sessions created by this manager.
+     * @deprecated This will be removed in Tomcat 11
      */
+    @Deprecated
     void setSessionCounter(long sessionCounter);
 
 
@@ -220,7 +224,7 @@ public interface Manager {
      */
     default String rotateSessionId(Session session) {
         String newSessionId = null;
-        // Assume there new Id is a duplicate until we prove it isn't. The
+        // Assume the new Id is a duplicate until we prove it isn't. The
         // chances of a duplicate are extremely low but the current ManagerBase
         // code protects against duplicates so this default method does too.
         boolean duplicate = true;

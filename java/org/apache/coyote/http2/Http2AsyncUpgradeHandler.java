@@ -26,6 +26,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 import jakarta.servlet.http.WebConnection;
 
@@ -44,9 +46,9 @@ public class Http2AsyncUpgradeHandler extends Http2UpgradeHandler {
     // Ensures headers are generated and then written for one thread at a time.
     // Because of the compression used, headers need to be written to the
     // network in the same order they are generated.
-    private final Object headerWriteLock = new Object();
+    private final Lock headerWriteLock = new ReentrantLock();
     // Ensures thread triggers the stream reset is the first to send a RST frame
-    private final Object sendResetLock = new Object();
+    private final Lock sendResetLock = new ReentrantLock();
     private final AtomicReference<Throwable> error = new AtomicReference<>();
     private final AtomicReference<IOException> applicationIOE = new AtomicReference<>();
 
@@ -126,8 +128,8 @@ public class Http2AsyncUpgradeHandler extends Http2UpgradeHandler {
 
     @Override
     void sendStreamReset(StreamStateMachine state, StreamException se) throws IOException {
-        if (log.isDebugEnabled()) {
-            log.debug(sm.getString("upgradeHandler.rst.debug", connectionId, Integer.toString(se.getStreamId()),
+        if (log.isTraceEnabled()) {
+            log.trace(sm.getString("upgradeHandler.rst.debug", connectionId, Integer.toString(se.getStreamId()),
                     se.getError(), se.getMessage()));
         }
         // Write a RST frame
@@ -149,17 +151,20 @@ public class Http2AsyncUpgradeHandler extends Http2UpgradeHandler {
         // may see out of order RST frames which may hard to follow if
         // the client is unaware the RST frames may be received out of
         // order.
-        synchronized (sendResetLock) {
+        sendResetLock.lock();
+        try {
             if (state != null) {
                 boolean active = state.isActive();
                 state.sendReset();
                 if (active) {
-                    activeRemoteStreamCount.decrementAndGet();
+                    decrementActiveRemoteStreamCount();
                 }
             }
 
             socketWrapper.write(BlockingMode.SEMI_BLOCK, protocol.getWriteTimeout(), TimeUnit.MILLISECONDS, null,
                     SocketWrapperBase.COMPLETE_WRITE, errorCompletion, ByteBuffer.wrap(rstFrame));
+        } finally {
+            sendResetLock.unlock();
         }
         handleAsyncException();
     }
@@ -192,7 +197,8 @@ public class Http2AsyncUpgradeHandler extends Http2UpgradeHandler {
     @Override
     void writeHeaders(Stream stream, int pushedStreamId, MimeHeaders mimeHeaders, boolean endOfStream, int payloadSize)
             throws IOException {
-        synchronized (headerWriteLock) {
+        headerWriteLock.lock();
+        try {
             AsyncHeaderFrameBuffers headerFrameBuffers = (AsyncHeaderFrameBuffers) doWriteHeaders(stream,
                     pushedStreamId, mimeHeaders, endOfStream, payloadSize);
             if (headerFrameBuffers != null) {
@@ -201,6 +207,8 @@ public class Http2AsyncUpgradeHandler extends Http2UpgradeHandler {
                         headerFrameBuffers.bufs.toArray(BYTEBUFFER_ARRAY));
                 handleAsyncException();
             }
+        } finally {
+            headerWriteLock.unlock();
         }
         if (endOfStream) {
             sentEndOfStream(stream);
@@ -216,10 +224,13 @@ public class Http2AsyncUpgradeHandler extends Http2UpgradeHandler {
 
     @Override
     void writeBody(Stream stream, ByteBuffer data, int len, boolean finished) throws IOException {
-        if (log.isDebugEnabled()) {
-            log.debug(sm.getString("upgradeHandler.writeBody", connectionId, stream.getIdAsString(),
+        if (log.isTraceEnabled()) {
+            log.trace(sm.getString("upgradeHandler.writeBody", connectionId, stream.getIdAsString(),
                     Integer.toString(len), Boolean.valueOf(finished)));
         }
+
+        reduceOverheadCount(FrameType.DATA);
+
         // Need to check this now since sending end of stream will change this.
         boolean writable = stream.canWrite();
         byte[] header = new byte[9];
@@ -244,8 +255,8 @@ public class Http2AsyncUpgradeHandler extends Http2UpgradeHandler {
     @Override
     void writeWindowUpdate(AbstractNonZeroStream stream, int increment, boolean applicationInitiated)
             throws IOException {
-        if (log.isDebugEnabled()) {
-            log.debug(sm.getString("upgradeHandler.windowUpdateConnection", getConnectionId(),
+        if (log.isTraceEnabled()) {
+            log.trace(sm.getString("upgradeHandler.windowUpdateConnection", getConnectionId(),
                     Integer.valueOf(increment)));
         }
         // Build window update frame for stream 0
@@ -258,8 +269,8 @@ public class Http2AsyncUpgradeHandler extends Http2UpgradeHandler {
         if (stream instanceof Stream && ((Stream) stream).canWrite()) {
             int streamIncrement = ((Stream) stream).getWindowUpdateSizeToWrite(increment);
             if (streamIncrement > 0) {
-                if (log.isDebugEnabled()) {
-                    log.debug(sm.getString("upgradeHandler.windowUpdateStream", getConnectionId(), getIdAsString(),
+                if (log.isTraceEnabled()) {
+                    log.trace(sm.getString("upgradeHandler.windowUpdateStream", getConnectionId(), getIdAsString(),
                             Integer.valueOf(streamIncrement)));
                 }
                 byte[] frame2 = new byte[13];
@@ -328,8 +339,8 @@ public class Http2AsyncUpgradeHandler extends Http2UpgradeHandler {
                 return SendfileState.ERROR;
             }
 
-            if (log.isDebugEnabled()) {
-                log.debug(sm.getString("upgradeHandler.sendfile.reservation", connectionId,
+            if (log.isTraceEnabled()) {
+                log.trace(sm.getString("upgradeHandler.sendfile.reservation", connectionId,
                         sendfile.stream.getIdAsString(), Integer.valueOf(sendfile.connectionReservation),
                         Integer.valueOf(sendfile.streamReservation)));
             }
@@ -350,8 +361,8 @@ public class Http2AsyncUpgradeHandler extends Http2UpgradeHandler {
                 sentEndOfStream(sendfile.stream);
             }
             if (writable) {
-                if (log.isDebugEnabled()) {
-                    log.debug(sm.getString("upgradeHandler.writeBody", connectionId, sendfile.stream.getIdAsString(),
+                if (log.isTraceEnabled()) {
+                    log.trace(sm.getString("upgradeHandler.writeBody", connectionId, sendfile.stream.getIdAsString(),
                             Integer.toString(frameSize), Boolean.valueOf(finished)));
                 }
                 ByteUtil.set31Bits(header, 5, sendfile.stream.getIdAsInt());
@@ -409,8 +420,8 @@ public class Http2AsyncUpgradeHandler extends Http2UpgradeHandler {
                     return;
                 }
 
-                if (log.isDebugEnabled()) {
-                    log.debug(sm.getString("upgradeHandler.sendfile.reservation", connectionId,
+                if (log.isTraceEnabled()) {
+                    log.trace(sm.getString("upgradeHandler.sendfile.reservation", connectionId,
                             sendfile.stream.getIdAsString(), Integer.valueOf(sendfile.connectionReservation),
                             Integer.valueOf(sendfile.streamReservation)));
                 }
@@ -431,8 +442,8 @@ public class Http2AsyncUpgradeHandler extends Http2UpgradeHandler {
                     sentEndOfStream(sendfile.stream);
                 }
                 if (writable) {
-                    if (log.isDebugEnabled()) {
-                        log.debug(
+                    if (log.isTraceEnabled()) {
+                        log.trace(
                                 sm.getString("upgradeHandler.writeBody", connectionId, sendfile.stream.getIdAsString(),
                                         Integer.toString(frameSize), Boolean.valueOf(finished)));
                     }

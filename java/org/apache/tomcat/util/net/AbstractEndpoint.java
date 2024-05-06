@@ -17,7 +17,6 @@
 package org.apache.tomcat.util.net;
 
 import java.io.IOException;
-import java.io.OutputStreamWriter;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.NetworkInterface;
@@ -52,6 +51,7 @@ import org.apache.tomcat.util.buf.HexUtils;
 import org.apache.tomcat.util.collections.SynchronizedStack;
 import org.apache.tomcat.util.modeler.Registry;
 import org.apache.tomcat.util.net.Acceptor.AcceptorState;
+import org.apache.tomcat.util.net.SSLHostConfigCertificate.StoreType;
 import org.apache.tomcat.util.res.StringManager;
 import org.apache.tomcat.util.threads.LimitLatch;
 import org.apache.tomcat.util.threads.ResizableExecutor;
@@ -267,6 +267,8 @@ public abstract class AbstractEndpoint<S,U> {
                 isSSLEnabled()) {
             try {
                 createSSLContext(sslHostConfig);
+            } catch (IllegalArgumentException e) {
+                throw e;
             } catch (Exception e) {
                 throw new IllegalArgumentException(e);
             }
@@ -366,14 +368,20 @@ public abstract class AbstractEndpoint<S,U> {
     protected void logCertificate(SSLHostConfigCertificate certificate) {
         SSLHostConfig sslHostConfig = certificate.getSSLHostConfig();
 
-        String certificateSource = certificate.getCertificateKeystoreFile();
-        if (certificateSource == null) {
-            certificateSource = certificate.getCertificateKeyFile();
-        }
+        String certificateInfo;
 
-        String keyAlias = certificate.getCertificateKeyAlias();
-        if (keyAlias == null) {
-            keyAlias = SSLUtilBase.DEFAULT_KEY_ALIAS;
+        if (certificate.getStoreType() == StoreType.PEM) {
+            // PEM file based
+            certificateInfo = sm.getString("endpoint.tls.info.cert.pem", certificate.getCertificateKeyFile(),
+                    certificate.getCertificateFile(), certificate.getCertificateChainFile());
+        } else {
+            // Keystore based
+            String keyAlias = certificate.getCertificateKeyAlias();
+            if (keyAlias == null) {
+                keyAlias = SSLUtilBase.DEFAULT_KEY_ALIAS;
+            }
+            certificateInfo =
+                    sm.getString("endpoint.tls.info.cert.keystore", certificate.getCertificateKeystoreFile(), keyAlias);
         }
 
         String trustStoreSource = sslHostConfig.getTruststoreFile();
@@ -385,7 +393,7 @@ public abstract class AbstractEndpoint<S,U> {
         }
 
         getLogCertificate().info(sm.getString("endpoint.tls.info", getName(), sslHostConfig.getHostName(),
-                certificate.getType(), certificateSource, keyAlias, trustStoreSource));
+                certificate.getType(), certificateInfo, trustStoreSource));
 
         if (getLogCertificate().isDebugEnabled()) {
             String alias = certificate.getCertificateKeyAlias();
@@ -412,7 +420,7 @@ public abstract class AbstractEndpoint<S,U> {
             MessageDigest sha512Digest = MessageDigest.getInstance("SHA-256");
             sha512Digest.update(certBytes);
             sb.append(HexUtils.toHexString(sha512Digest.digest()));
-            // SHA-256 fingerprint
+            // SHA-1 fingerprint
             sb.append("\nSHA-1 fingerprint: ");
             MessageDigest sha1Digest = MessageDigest.getInstance("SHA-1");
             sha1Digest.update(certBytes);
@@ -449,7 +457,8 @@ public abstract class AbstractEndpoint<S,U> {
     protected void releaseSSLContext(SSLHostConfig sslHostConfig) {
         for (SSLHostConfigCertificate certificate : sslHostConfig.getCertificates()) {
             if (certificate.getSslContext() != null) {
-                SSLContext sslContext = certificate.getSslContext();
+                // Only release the SSLContext if we generated it.
+                SSLContext sslContext = certificate.getSslContextGenerated();
                 if (sslContext != null) {
                     sslContext.destroy();
                 }
@@ -804,6 +813,30 @@ public abstract class AbstractEndpoint<S,U> {
 
 
     /**
+     * Amount of time in milliseconds before the internal thread pool stops any idle threads
+     * if the amount of thread is greater than the minimum amount of spare threads.
+     */
+    private int threadsMaxIdleTime = 60000;
+    public void setThreadsMaxIdleTime(int threadsMaxIdleTime) {
+        this.threadsMaxIdleTime = threadsMaxIdleTime;
+        Executor executor = this.executor;
+        if (internalExecutor && executor instanceof ThreadPoolExecutor) {
+            // The internal executor should always be an instance of
+            // org.apache.tomcat.util.threads.ThreadPoolExecutor but it may be
+            // null if the endpoint is not running.
+            // This check also avoids various threading issues.
+            ((ThreadPoolExecutor) executor).setKeepAliveTime(threadsMaxIdleTime, TimeUnit.MILLISECONDS);
+        }
+    }
+    public int getThreadsMaxIdleTime() {
+        if (internalExecutor) {
+            return threadsMaxIdleTime;
+        } else {
+            return -1;
+        }
+    }
+
+    /**
      * Priority of the worker threads.
      */
     protected int threadPriority = Thread.NORM_PRIORITY;
@@ -1039,8 +1072,9 @@ public abstract class AbstractEndpoint<S,U> {
         } else {
             TaskQueue taskqueue = new TaskQueue();
             TaskThreadFactory tf = new TaskThreadFactory(getName() + "-exec-", daemon, getThreadPriority());
-            executor = new ThreadPoolExecutor(getMinSpareThreads(), getMaxThreads(), 60, TimeUnit.SECONDS,taskqueue, tf);
-            taskqueue.setParent( (ThreadPoolExecutor) executor);
+            executor = new ThreadPoolExecutor(getMinSpareThreads(), getMaxThreads(), getThreadsMaxIdleTime(),
+                    TimeUnit.MILLISECONDS, taskqueue, tf);
+            taskqueue.setParent((ThreadPoolExecutor) executor);
         }
     }
 
@@ -1095,41 +1129,21 @@ public abstract class AbstractEndpoint<S,U> {
             unlockAddress = getUnlockAddress(localAddress);
 
             try (java.net.Socket s = new java.net.Socket()) {
-                int stmo = 2 * 1000;
-                int utmo = 2 * 1000;
-                if (getSocketProperties().getSoTimeout() > stmo) {
-                    stmo = getSocketProperties().getSoTimeout();
-                }
-                if (getSocketProperties().getUnlockTimeout() > utmo) {
-                    utmo = getSocketProperties().getUnlockTimeout();
-                }
-                s.setSoTimeout(stmo);
+                // Never going to read from this socket so the timeout doesn't matter. Use the unlock timeout.
+                s.setSoTimeout(getSocketProperties().getUnlockTimeout());
                 // Newer MacOS versions (e.g. Ventura 13.2) appear to linger for ~1s on close when linger is disabled.
-                // That causes delays when running the unit tests. Explicitly enableing linger but with a timeout of
+                // That causes delays when running the unit tests. Explicitly enabling linger but with a timeout of
                 // zero seconds seems to fix the issue.
                 s.setSoLinger(true, 0);
-                if (getLog().isDebugEnabled()) {
-                    getLog().debug("About to unlock socket for:" + unlockAddress);
+                if (getLog().isTraceEnabled()) {
+                    getLog().trace("About to unlock socket for:" + unlockAddress);
                 }
-                s.connect(unlockAddress,utmo);
-                if (getDeferAccept()) {
-                    /*
-                     * In the case of a deferred accept / accept filters we need to
-                     * send data to wake up the accept. Send OPTIONS * to bypass
-                     * even BSD accept filters. The Acceptor will discard it.
-                     */
-                    OutputStreamWriter sw;
-
-                    sw = new OutputStreamWriter(s.getOutputStream(), "ISO-8859-1");
-                    sw.write("OPTIONS * HTTP/1.0\r\n" +
-                            "User-Agent: Tomcat wakeup connection\r\n\r\n");
-                    sw.flush();
-                }
-                if (getLog().isDebugEnabled()) {
-                    getLog().debug("Socket unlock completed for:" + unlockAddress);
+                s.connect(unlockAddress, getSocketProperties().getUnlockTimeout());
+                if (getLog().isTraceEnabled()) {
+                    getLog().trace("Socket unlock completed for:" + unlockAddress);
                 }
             }
-            // Wait for up to 1000ms acceptor threads to unlock. Particularly
+            // Wait for up to 1000ms for acceptor thread to unlock. Particularly
             // for the unit tests, we want to exit this loop as quickly as
             // possible. However, we also don't want to trigger excessive CPU
             // usage if the unlock takes longer than expected. Therefore, we
@@ -1262,6 +1276,7 @@ public abstract class AbstractEndpoint<S,U> {
 
     public abstract void bind() throws Exception;
     public abstract void unbind() throws Exception;
+
     public abstract void startInternal() throws Exception;
     public abstract void stopInternal() throws Exception;
 
@@ -1478,7 +1493,7 @@ public abstract class AbstractEndpoint<S,U> {
     public final void closeServerSocketGraceful() {
         if (bindState == BindState.BOUND_ON_START) {
             // Stop accepting new connections
-            acceptor.stop(-1);
+            acceptor.stopMillis(-1);
             // Release locks that may be preventing the acceptor from stopping
             releaseConnectionLatch();
             unlockAccept();

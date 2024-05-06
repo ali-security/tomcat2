@@ -177,14 +177,14 @@ class Http2Parser {
             dataLength = payloadSize;
         }
 
-        if (log.isDebugEnabled()) {
+        if (log.isTraceEnabled()) {
             String padding;
             if (Flags.hasPadding(flags)) {
                 padding = Integer.toString(padLength);
             } else {
                 padding = "none";
             }
-            log.debug(sm.getString("http2Parser.processFrameData.lengths", connectionId, Integer.toString(streamId),
+            log.trace(sm.getString("http2Parser.processFrameData.lengths", connectionId, Integer.toString(streamId),
                     Integer.toString(dataLength), padding));
         }
 
@@ -413,8 +413,8 @@ class Http2Parser {
         }
         int windowSizeIncrement = ByteUtil.get31Bits(payload, 0);
 
-        if (log.isDebugEnabled()) {
-            log.debug(sm.getString("http2Parser.processFrameWindowUpdate.debug", connectionId,
+        if (log.isTraceEnabled()) {
+            log.trace(sm.getString("http2Parser.processFrameWindowUpdate.debug", connectionId,
                     Integer.toString(streamId), Integer.toString(windowSizeIncrement)));
         }
 
@@ -479,8 +479,8 @@ class Http2Parser {
         Reader r = new BufferedReader(new InputStreamReader(bais, StandardCharsets.US_ASCII));
         Priority p = Priority.parsePriority(r);
 
-        if (log.isDebugEnabled()) {
-            log.debug(sm.getString("http2Parser.processFramePriorityUpdate.debug", connectionId,
+        if (log.isTraceEnabled()) {
+            log.trace(sm.getString("http2Parser.processFramePriorityUpdate.debug", connectionId,
                     Integer.toString(prioritizedStreamID), Integer.toString(p.getUrgency()),
                     Boolean.valueOf(p.getIncremental())));
         }
@@ -492,8 +492,8 @@ class Http2Parser {
     protected void readHeaderPayload(int streamId, int payloadSize, ByteBuffer buffer)
             throws Http2Exception, IOException {
 
-        if (log.isDebugEnabled()) {
-            log.debug(sm.getString("http2Parser.processFrameHeaders.payload", connectionId, Integer.valueOf(streamId),
+        if (log.isTraceEnabled()) {
+            log.trace(sm.getString("http2Parser.processFrameHeaders.payload", connectionId, Integer.valueOf(streamId),
                     Integer.valueOf(payloadSize)));
         }
 
@@ -587,8 +587,8 @@ class Http2Parser {
      */
     protected void swallowPayload(int streamId, int frameTypeId, int len, boolean isPadding, ByteBuffer byteBuffer)
             throws IOException, ConnectionException {
-        if (log.isDebugEnabled()) {
-            log.debug(sm.getString("http2Parser.swallow.debug", connectionId, Integer.toString(streamId),
+        if (log.isTraceEnabled()) {
+            log.trace(sm.getString("http2Parser.swallow.debug", connectionId, Integer.toString(streamId),
                     Integer.toString(len)));
         }
         try {
@@ -644,10 +644,9 @@ class Http2Parser {
         }
 
         synchronized (output) {
-            output.headersEnd(streamId);
+            output.headersEnd(streamId, headersEndStream);
 
             if (headersEndStream) {
-                output.receivedEndOfStream(streamId);
                 headersEndStream = false;
             }
         }
@@ -667,8 +666,8 @@ class Http2Parser {
     protected void validateFrame(FrameType expected, FrameType frameType, int streamId, int flags, int payloadSize)
             throws Http2Exception {
 
-        if (log.isDebugEnabled()) {
-            log.debug(sm.getString("http2Parser.processFrame", connectionId, Integer.toString(streamId), frameType,
+        if (log.isTraceEnabled()) {
+            log.trace(sm.getString("http2Parser.processFrame", connectionId, Integer.toString(streamId), frameType,
                     Integer.toString(flags), Integer.toString(payloadSize)));
         }
 
@@ -795,7 +794,7 @@ class Http2Parser {
 
         void headersContinue(int payloadSize, boolean endOfHeaders);
 
-        void headersEnd(int streamId) throws Http2Exception;
+        void headersEnd(int streamId, boolean endOfStream) throws Http2Exception;
 
         // Reset frames
         void reset(int streamId, long errorCode) throws Http2Exception;

@@ -389,7 +389,9 @@ public abstract class AbstractReplicatedMap<K,V>
         }
         this.rpcChannel = null;
         this.channel = null;
-        this.mapMembers.clear();
+        synchronized (mapMembers) {
+            this.mapMembers.clear();
+        }
         innerMap.clear();
         this.stateTransferred = false;
         this.externalLoaders = null;
@@ -417,12 +419,12 @@ public abstract class AbstractReplicatedMap<K,V>
 //              GROUP COM INTERFACES
 //------------------------------------------------------------------------------
     public Member[] getMapMembers(HashMap<Member, Long> members) {
-        synchronized (members) {
-            return members.keySet().toArray(new Member[0]);
-        }
+        return members.keySet().toArray(new Member[0]);
     }
     public Member[] getMapMembers() {
-        return getMapMembers(this.mapMembers);
+        synchronized (mapMembers) {
+            return getMapMembers(mapMembers);
+        }
     }
 
     public Member[] getMapMembersExcl(Member[] exclude) {
@@ -561,10 +563,6 @@ public abstract class AbstractReplicatedMap<K,V>
         this.state = State.STATETRANSFERRED;
     }
 
-    /**
-     * @param msg Serializable
-     * @return Serializable - null if no reply should be sent
-     */
     @Override
     public Serializable replyRequest(Serializable msg, final Member sender) {
         if (! (msg instanceof MapMessage)) {
@@ -626,12 +624,6 @@ public abstract class AbstractReplicatedMap<K,V>
 
     }
 
-    /**
-     * If the reply has already been sent to the requesting thread,
-     * the rpc callback can handle any data that comes in after the fact.
-     * @param msg Serializable
-     * @param sender Member
-     */
     @Override
     public void leftOver(Serializable msg, Member sender) {
         //left over membership messages
@@ -893,13 +885,13 @@ public abstract class AbstractReplicatedMap<K,V>
             removed = (mapMembers.remove(member) != null );
             if (!removed) {
                 if (log.isDebugEnabled()) {
-                    log.debug("Member["+member+"] disappeared, but was not present in the map.");
+                    log.debug(sm.getString("replicatedMap.member.disappeared.unknown", member));
                 }
                 return; //the member was not part of our map.
             }
         }
         if (log.isInfoEnabled()) {
-            log.info(sm.getString("abstractReplicatedMap.member.disappeared", member));
+            log.info(sm.getString("replicatedMap.member.disappeared", member));
         }
         long start = System.currentTimeMillis();
         Iterator<Map.Entry<K,MapEntry<K,V>>> i = innerMap.entrySet().iterator();
@@ -911,7 +903,7 @@ public abstract class AbstractReplicatedMap<K,V>
             }
             if (entry.isPrimary() && inSet(member,entry.getBackupNodes())) {
                 if (log.isDebugEnabled()) {
-                    log.debug("[1] Primary choosing a new backup");
+                    log.debug(sm.getString("abstractReplicatedMap.newBackup"));
                 }
                 try {
                     Member[] backup = publishEntryInfo(entry.getKey(), entry.getValue());
@@ -922,7 +914,7 @@ public abstract class AbstractReplicatedMap<K,V>
                 }
             } else if (member.equals(entry.getPrimary())) {
                 if (log.isDebugEnabled()) {
-                    log.debug("[2] Primary disappeared");
+                    log.debug(sm.getString("abstractReplicatedMap.primaryDisappeared"));
                 }
                 entry.setPrimary(null);
             } //end if
@@ -934,7 +926,7 @@ public abstract class AbstractReplicatedMap<K,V>
                  entry.getBackupNodes()[0].equals(member) ) {
                 //remove proxies that have no backup nor primaries
                 if (log.isDebugEnabled()) {
-                    log.debug("[3] Removing orphaned proxy");
+                    log.debug(sm.getString("abstractReplicatedMap.removeOrphan"));
                 }
                 i.remove();
             } else if ( entry.getPrimary() == null &&
@@ -944,7 +936,7 @@ public abstract class AbstractReplicatedMap<K,V>
                         entry.getBackupNodes()[0].equals(channel.getLocalMember(false)) ) {
                 try {
                     if (log.isDebugEnabled()) {
-                        log.debug("[4] Backup becoming primary");
+                        log.debug(sm.getString("abstractReplicatedMap.newPrimary"));
                     }
                     entry.setPrimary(channel.getLocalMember(false));
                     entry.setBackup(false);
@@ -970,16 +962,18 @@ public abstract class AbstractReplicatedMap<K,V>
     }
 
     public int getNextBackupIndex() {
-        int size = mapMembers.size();
-        if (mapMembers.size() == 0) {
-            return -1;
+        synchronized (mapMembers) {
+            int size = mapMembers.size();
+            if (mapMembers.size() == 0) {
+                return -1;
+            }
+            int node = currentNode++;
+            if (node >= size) {
+                node = 0;
+                currentNode = 1;
+            }
+            return node;
         }
-        int node = currentNode++;
-        if (node >= size) {
-            node = 0;
-            currentNode = 1;
-        }
-        return node;
     }
     public Member getNextBackupNode() {
         Member[] members = getMapMembers();
@@ -993,6 +987,13 @@ public abstract class AbstractReplicatedMap<K,V>
         return members[node];
     }
 
+    /**
+     * Publish info about a map pair (key/value) to other nodes in the cluster.
+     * @param key Object
+     * @param value Object
+     * @return Member - the backup node
+     * @throws ChannelException Cluster error
+     */
     protected abstract Member[] publishEntryInfo(Object key, Object value) throws ChannelException;
 
     @Override
@@ -1010,12 +1011,6 @@ public abstract class AbstractReplicatedMap<K,V>
 //              METHODS TO OVERRIDE
 //------------------------------------------------------------------------------
 
-    /**
-     * Removes an object from this map, it will also remove it from
-     *
-     * @param key Object
-     * @return Object
-     */
     @Override
     public V remove(Object key) {
         return remove(key,true);
@@ -1138,7 +1133,9 @@ public abstract class AbstractReplicatedMap<K,V>
             }
             System.out.println("EndMap]\n\n");
         }catch ( Exception ignore) {
-            ignore.printStackTrace();
+            if (log.isTraceEnabled()) {
+                log.trace("Error printing map", ignore);
+            }
         }
     }
 
@@ -1185,10 +1182,6 @@ public abstract class AbstractReplicatedMap<K,V>
     }
 
 
-    /**
-     * Copies all values from one map to this instance
-     * @param m Map
-     */
     @Override
     public void putAll(Map<? extends K, ? extends V> m) {
         for (Entry<? extends K, ? extends V> value : m.entrySet()) {
@@ -1648,10 +1641,6 @@ public abstract class AbstractReplicatedMap<K,V>
             }
         }
 
-        /**
-         * shallow clone
-         * @return Object
-         */
         @Override
         public MapMessage clone() {
             try {

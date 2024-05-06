@@ -38,15 +38,12 @@ import jakarta.websocket.Session;
 import jakarta.websocket.WebSocketContainer;
 
 import org.junit.Assert;
-import org.junit.Assume;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameter;
 
 import org.apache.catalina.Context;
-import org.apache.catalina.core.AprLifecycleListener;
-import org.apache.catalina.core.StandardServer;
 import org.apache.catalina.servlets.DefaultServlet;
 import org.apache.catalina.startup.Tomcat;
 import org.apache.tomcat.util.net.TesterSupport;
@@ -64,7 +61,7 @@ public class TestWebSocketFrameClientSSL extends WebSocketBaseTest {
         parameterSets.add(new Object[] { "JSSE", Boolean.FALSE, "org.apache.tomcat.util.net.jsse.JSSEImplementation" });
         parameterSets.add(
                 new Object[] { "OpenSSL", Boolean.TRUE, "org.apache.tomcat.util.net.openssl.OpenSSLImplementation" });
-        parameterSets.add(new Object[] { "OpenSSL-Panama", Boolean.FALSE,
+        parameterSets.add(new Object[] { "OpenSSL-FFM", Boolean.TRUE,
                 "org.apache.tomcat.util.net.openssl.panama.OpenSSLImplementation" });
 
         return parameterSets;
@@ -74,7 +71,7 @@ public class TestWebSocketFrameClientSSL extends WebSocketBaseTest {
     public String connectorName;
 
     @Parameter(1)
-    public boolean needApr;
+    public boolean useOpenSSL;
 
     @Parameter(2)
     public String sslImplementationName;
@@ -120,7 +117,7 @@ public class TestWebSocketFrameClientSSL extends WebSocketBaseTest {
     public void testConnectToServerEndpoint() throws Exception {
         Tomcat tomcat = getTomcatInstance();
         // No file system docBase required
-        Context ctx = tomcat.addContext("", null);
+        Context ctx = getProgrammaticRootContext();
         ctx.addApplicationListener(TesterFirehoseServer.ConfigInline.class.getName());
         Tomcat.addServlet(ctx, "default", new DefaultServlet());
         ctx.addServletMappingDecoded("/", "default");
@@ -145,6 +142,9 @@ public class TestWebSocketFrameClientSSL extends WebSocketBaseTest {
 
         Session wsSession = wsContainer.connectToServer(TesterProgrammaticEndpoint.class, clientEndpointConfig,
                 new URI("wss://localhost:" + getPort() + TesterFirehoseServer.PATH));
+        // Set a short session close timeout (milliseconds)
+        wsSession.getUserProperties().put(
+            org.apache.tomcat.websocket.Constants.SESSION_CLOSE_TIMEOUT_PROPERTY, Long.valueOf(2000));
         CountDownLatch latch = new CountDownLatch(TesterFirehoseServer.MESSAGE_COUNT);
         BasicText handler = new BasicText(latch);
         wsSession.addMessageHandler(handler);
@@ -225,7 +225,7 @@ public class TestWebSocketFrameClientSSL extends WebSocketBaseTest {
     public void testBug56032() throws Exception {
         Tomcat tomcat = getTomcatInstance();
         // No file system docBase required
-        Context ctx = tomcat.addContext("", null);
+        Context ctx = getProgrammaticRootContext();
         ctx.addApplicationListener(TesterFirehoseServer.ConfigInline.class.getName());
         Tomcat.addServlet(ctx, "default", new DefaultServlet());
         ctx.addServletMappingDecoded("/", "default");
@@ -285,6 +285,9 @@ public class TestWebSocketFrameClientSSL extends WebSocketBaseTest {
             Assert.fail("There are [" + openConnectionCount + "] connections still open");
         }
 
+        // Set a short session close timeout (milliseconds)
+        wsSession.getUserProperties().put(
+            org.apache.tomcat.websocket.Constants.SESSION_CLOSE_TIMEOUT_PROPERTY, Long.valueOf(2000));
         // Close the client session.
         wsSession.close();
     }
@@ -298,13 +301,6 @@ public class TestWebSocketFrameClientSSL extends WebSocketBaseTest {
 
         TesterSupport.initSsl(tomcat);
 
-        TesterSupport.configureSSLImplementation(tomcat, sslImplementationName);
-
-        if (needApr) {
-            AprLifecycleListener listener = new AprLifecycleListener();
-            Assume.assumeTrue(AprLifecycleListener.isAprAvailable());
-            StandardServer server = (StandardServer) tomcat.getServer();
-            server.addLifecycleListener(listener);
-        }
+        TesterSupport.configureSSLImplementation(tomcat, sslImplementationName, useOpenSSL);
     }
 }

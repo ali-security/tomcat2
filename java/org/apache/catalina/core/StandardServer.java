@@ -32,6 +32,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import javax.management.InstanceNotFoundException;
 import javax.management.MBeanException;
@@ -39,7 +41,6 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import org.apache.catalina.Context;
-import org.apache.catalina.Lifecycle;
 import org.apache.catalina.LifecycleException;
 import org.apache.catalina.LifecycleState;
 import org.apache.catalina.Server;
@@ -137,8 +138,14 @@ public final class StandardServer extends LifecycleMBeanBase implements Server {
      * The set of Services associated with this Server.
      */
     private Service[] services = new Service[0];
-    private final Object servicesLock = new Object();
 
+    private final Lock servicesReadLock;
+    private final Lock servicesWriteLock;
+    {
+        ReentrantReadWriteLock servicesLock = new ReentrantReadWriteLock();
+        servicesReadLock = servicesLock.readLock();
+        servicesWriteLock = servicesLock.writeLock();
+    }
 
     /**
      * The shutdown command string we are looking for.
@@ -216,9 +223,6 @@ public final class StandardServer extends LifecycleMBeanBase implements Server {
     }
 
 
-    /**
-     * Return the global naming resources context.
-     */
     @Override
     public javax.naming.Context getGlobalNamingContext() {
         return this.globalNamingContext;
@@ -235,20 +239,12 @@ public final class StandardServer extends LifecycleMBeanBase implements Server {
     }
 
 
-    /**
-     * Return the global naming resources.
-     */
     @Override
     public NamingResourcesImpl getGlobalNamingResources() {
         return this.globalNamingResources;
     }
 
 
-    /**
-     * Set the global naming resources.
-     *
-     * @param globalNamingResources The new global naming resources
-     */
     @Override
     public void setGlobalNamingResources(NamingResourcesImpl globalNamingResources) {
 
@@ -290,20 +286,12 @@ public final class StandardServer extends LifecycleMBeanBase implements Server {
     }
 
 
-    /**
-     * Return the port number we listen to for shutdown commands.
-     */
     @Override
     public int getPort() {
         return this.port;
     }
 
 
-    /**
-     * Set the port number we listen to for shutdown commands.
-     *
-     * @param port The new port number
-     */
     @Override
     public void setPort(int port) {
         this.port = port;
@@ -339,57 +327,35 @@ public final class StandardServer extends LifecycleMBeanBase implements Server {
     }
 
 
-    /**
-     * Return the address on which we listen to for shutdown commands.
-     */
     @Override
     public String getAddress() {
         return this.address;
     }
 
 
-    /**
-     * Set the address on which we listen to for shutdown commands.
-     *
-     * @param address The new address
-     */
     @Override
     public void setAddress(String address) {
         this.address = address;
     }
 
-    /**
-     * Return the shutdown command string we are waiting for.
-     */
     @Override
     public String getShutdown() {
         return this.shutdown;
     }
 
 
-    /**
-     * Set the shutdown command we are waiting for.
-     *
-     * @param shutdown The new shutdown command
-     */
     @Override
     public void setShutdown(String shutdown) {
         this.shutdown = shutdown;
     }
 
 
-    /**
-     * Return the outer Catalina startup/shutdown component if present.
-     */
     @Override
     public Catalina getCatalina() {
         return catalina;
     }
 
 
-    /**
-     * Set the outer Catalina startup/shutdown component if present.
-     */
     @Override
     public void setCatalina(Catalina catalina) {
         this.catalina = catalina;
@@ -447,8 +413,7 @@ public final class StandardServer extends LifecycleMBeanBase implements Server {
             scheduledThreadPoolExecutor.setRemoveOnCancelPolicy(true);
             scheduledThreadPoolExecutor.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
             utilityExecutor = scheduledThreadPoolExecutor;
-            utilityExecutorWrapper = new org.apache.tomcat.util.threads.ScheduledThreadPoolExecutor(
-                    utilityExecutor);
+            utilityExecutorWrapper = new org.apache.tomcat.util.threads.ScheduledThreadPoolExecutor(utilityExecutor);
         }
     }
 
@@ -494,34 +459,31 @@ public final class StandardServer extends LifecycleMBeanBase implements Server {
     // --------------------------------------------------------- Server Methods
 
 
-    /**
-     * Add a new Service to the set of defined Services.
-     *
-     * @param service The Service to be added
-     */
     @Override
     public void addService(Service service) {
 
         service.setServer(this);
 
-        synchronized (servicesLock) {
+        servicesWriteLock.lock();
+        try {
             Service results[] = new Service[services.length + 1];
             System.arraycopy(services, 0, results, 0, services.length);
             results[services.length] = service;
             services = results;
-
-            if (getState().isAvailable()) {
-                try {
-                    service.start();
-                } catch (LifecycleException e) {
-                    // Ignore
-                }
-            }
-
-            // Report this property change to interested listeners
-            support.firePropertyChange("service", null, service);
+        } finally {
+            servicesWriteLock.unlock();
         }
 
+        if (getState().isAvailable()) {
+            try {
+                service.start();
+            } catch (LifecycleException e) {
+                // Ignore
+            }
+        }
+
+        // Report this property change to interested listeners
+        support.firePropertyChange("service", null, service);
     }
 
     public void stopAwait() {
@@ -546,10 +508,6 @@ public final class StandardServer extends LifecycleMBeanBase implements Server {
         }
     }
 
-    /**
-     * Wait until a proper shutdown command is received, then return. This keeps the main thread alive - the thread pool
-     * listening for http connections is daemon threads.
-     */
     @Override
     public void await() {
         // Negative values - don't wait on port - tomcat is embedded or we just don't like ports
@@ -627,7 +585,7 @@ public final class StandardServer extends LifecycleMBeanBase implements Server {
                         if (random == null) {
                             random = new Random();
                         }
-                        expected += (random.nextInt() % 1024);
+                        expected += random.nextInt() % 1024;
                     }
                     while (expected > 0) {
                         int ch = -1;
@@ -681,56 +639,62 @@ public final class StandardServer extends LifecycleMBeanBase implements Server {
     }
 
 
-    /**
-     * @return the specified Service (if it exists); otherwise return <code>null</code>.
-     *
-     * @param name Name of the Service to be returned
-     */
     @Override
     public Service findService(String name) {
         if (name == null) {
             return null;
         }
-        synchronized (servicesLock) {
+        servicesReadLock.lock();
+
+        try {
             for (Service service : services) {
                 if (name.equals(service.getName())) {
                     return service;
                 }
             }
+        } finally {
+            servicesReadLock.unlock();
         }
+
         return null;
     }
 
 
-    /**
-     * @return The array of Services defined within this Server.
-     */
     @Override
     public Service[] findServices() {
-        return services;
+        servicesReadLock.lock();
+
+        try {
+            return services.clone();
+        } finally {
+            servicesReadLock.unlock();
+        }
     }
 
     /**
      * @return the JMX service names.
      */
     public ObjectName[] getServiceNames() {
-        ObjectName[] onames = new ObjectName[services.length];
-        for (int i = 0; i < services.length; i++) {
-            onames[i] = ((StandardService) services[i]).getObjectName();
+        servicesReadLock.lock();
+
+        try {
+            ObjectName[] onames = new ObjectName[services.length];
+            for (int i = 0; i < services.length; i++) {
+                onames[i] = ((StandardService) services[i]).getObjectName();
+            }
+            return onames;
+        } finally {
+            servicesReadLock.unlock();
         }
-        return onames;
     }
 
 
-    /**
-     * Remove the specified Service from the set associated from this Server.
-     *
-     * @param service The Service to be removed
-     */
     @Override
     public void removeService(Service service) {
 
-        synchronized (servicesLock) {
+        servicesWriteLock.lock();
+
+        try {
             int j = -1;
             for (int i = 0; i < services.length; i++) {
                 if (service == services[i]) {
@@ -741,11 +705,6 @@ public final class StandardServer extends LifecycleMBeanBase implements Server {
             if (j < 0) {
                 return;
             }
-            try {
-                services[j].stop();
-            } catch (LifecycleException e) {
-                // Ignore
-            }
             int k = 0;
             Service[] results = new Service[services.length - 1];
             for (int i = 0; i < services.length; i++) {
@@ -754,11 +713,18 @@ public final class StandardServer extends LifecycleMBeanBase implements Server {
                 }
             }
             services = results;
-
-            // Report this property change to interested listeners
-            support.firePropertyChange("service", service, null);
+        } finally {
+            servicesWriteLock.unlock();
         }
 
+        try {
+            service.stop();
+        } catch (LifecycleException e) {
+            // Ignore
+        }
+
+        // Report this property change to interested listeners
+        support.firePropertyChange("service", service, null);
     }
 
 
@@ -817,9 +783,6 @@ public final class StandardServer extends LifecycleMBeanBase implements Server {
     }
 
 
-    /**
-     * Return a String representation of this component.
-     */
     @Override
     public String toString() {
         return "StandardServer[" + getPort() + ']';
@@ -885,20 +848,13 @@ public final class StandardServer extends LifecycleMBeanBase implements Server {
         boolean useNaming = true;
         // Reading the "catalina.useNaming" environment variable
         String useNamingProperty = System.getProperty("catalina.useNaming");
-        if ((useNamingProperty != null) && (useNamingProperty.equals("false"))) {
+        if (useNamingProperty != null && useNamingProperty.equals("false")) {
             useNaming = false;
         }
         return useNaming;
     }
 
 
-    /**
-     * Start nested components ({@link Service}s) and implement the requirements of
-     * {@link org.apache.catalina.util.LifecycleBase#startInternal()}.
-     *
-     * @exception LifecycleException if this component detects a fatal error that prevents this component from being
-     *                                   used
-     */
     @Override
     protected void startInternal() throws LifecycleException {
 
@@ -914,10 +870,8 @@ public final class StandardServer extends LifecycleMBeanBase implements Server {
         globalNamingResources.start();
 
         // Start our defined Services
-        synchronized (servicesLock) {
-            for (Service service : services) {
-                service.start();
-            }
+        for (Service service : findServices()) {
+            service.start();
         }
 
         if (periodicEventDelay > 0) {
@@ -937,19 +891,13 @@ public final class StandardServer extends LifecycleMBeanBase implements Server {
                     log.error(sm.getString("standardServer.periodicEventError"), e);
                 }
             }
-            periodicLifecycleEventFuture = getUtilityExecutor().scheduleAtFixedRate(
-                    () -> fireLifecycleEvent(Lifecycle.PERIODIC_EVENT, null), periodicEventDelay, periodicEventDelay,
-                    TimeUnit.SECONDS);
+            periodicLifecycleEventFuture =
+                    getUtilityExecutor().scheduleAtFixedRate(() -> fireLifecycleEvent(PERIODIC_EVENT, null),
+                            periodicEventDelay, periodicEventDelay, TimeUnit.SECONDS);
         }
     }
 
 
-    /**
-     * Stop nested components ({@link Service}s) and implement the requirements of
-     * {@link org.apache.catalina.util.LifecycleBase#stopInternal()}.
-     *
-     * @exception LifecycleException if this component detects a fatal error that needs to be reported
-     */
     @Override
     protected void stopInternal() throws LifecycleException {
 
@@ -967,7 +915,7 @@ public final class StandardServer extends LifecycleMBeanBase implements Server {
         fireLifecycleEvent(CONFIGURE_STOP_EVENT, null);
 
         // Stop our defined Services
-        for (Service service : services) {
+        for (Service service : findServices()) {
             service.stop();
         }
 
@@ -985,7 +933,9 @@ public final class StandardServer extends LifecycleMBeanBase implements Server {
     }
 
     /**
-     * Invoke a pre-startup initialization. This is used to allow connectors to bind to restricted ports under Unix
+     * {@inheritDoc}
+     * <p>
+     * This is used to allow connectors to bind to restricted ports under Unix
      * operating environments.
      */
     @Override
@@ -1008,7 +958,7 @@ public final class StandardServer extends LifecycleMBeanBase implements Server {
         globalNamingResources.init();
 
         // Initialize our defined Services
-        for (Service service : services) {
+        for (Service service : findServices()) {
             service.init();
         }
     }
@@ -1016,7 +966,7 @@ public final class StandardServer extends LifecycleMBeanBase implements Server {
     @Override
     protected void destroyInternal() throws LifecycleException {
         // Destroy our defined Services
-        for (Service service : services) {
+        for (Service service : findServices()) {
             service.destroy();
         }
 
@@ -1029,9 +979,6 @@ public final class StandardServer extends LifecycleMBeanBase implements Server {
         super.destroyInternal();
     }
 
-    /**
-     * Return the parent class loader for this component.
-     */
     @Override
     public ClassLoader getParentClassLoader() {
         if (parentClassLoader != null) {
@@ -1043,11 +990,6 @@ public final class StandardServer extends LifecycleMBeanBase implements Server {
         return ClassLoader.getSystemClassLoader();
     }
 
-    /**
-     * Set the parent class loader for this server.
-     *
-     * @param parent The new parent class loader
-     */
     @Override
     public void setParentClassLoader(ClassLoader parent) {
         ClassLoader oldParentClassLoader = this.parentClassLoader;
@@ -1060,7 +1002,7 @@ public final class StandardServer extends LifecycleMBeanBase implements Server {
     private ObjectName onameMBeanFactory;
 
     /**
-     * Obtain the MBean domain for this server. The domain is obtained using the following search order:
+     * @return the MBean domain for this server. The domain is obtained using the following search order:
      * <ol>
      * <li>Name of first {@link org.apache.catalina.Engine}.</li>
      * <li>Name of first {@link Service}.</li>

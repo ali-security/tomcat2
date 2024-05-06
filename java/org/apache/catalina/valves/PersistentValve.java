@@ -102,28 +102,18 @@ public class PersistentValve extends ValveBase {
     }
 
 
-    /**
-     * Select the appropriate child Context to process this request, based on the specified request URI. If no matching
-     * Context can be found, return an appropriate HTTP error.
-     *
-     * @param request  Request to be processed
-     * @param response Response to be produced
-     *
-     * @exception IOException      if an input/output error occurred
-     * @exception ServletException if a servlet error occurred
-     */
     @Override
     public void invoke(Request request, Response response) throws IOException, ServletException {
 
         // request without session
         if (isRequestWithoutSession(request.getDecodedRequestURI())) {
-            if (containerLog.isDebugEnabled()) {
-                containerLog.debug(sm.getString("persistentValve.requestIgnore", request.getDecodedRequestURI()));
+            if (containerLog.isTraceEnabled()) {
+                containerLog.trace(sm.getString("persistentValve.requestIgnore", request.getDecodedRequestURI()));
             }
             getNext().invoke(request, response);
             return;
-        } else if (containerLog.isDebugEnabled()) {
-            containerLog.debug(sm.getString("persistentValve.requestProcess", request.getDecodedRequestURI()));
+        } else if (containerLog.isTraceEnabled()) {
+            containerLog.trace(sm.getString("persistentValve.requestProcess", request.getDecodedRequestURI()));
         }
 
         // Select the Context to be used for this Request
@@ -177,12 +167,12 @@ public class PersistentValve extends ValveBase {
                     try {
                         session = store.load(sessionId);
                     } catch (Exception e) {
-                        containerLog.error("deserializeError");
+                        containerLog.error(sm.getString("persistentValve.sessionLoadFail", sessionId));
                     }
                     if (session != null) {
                         if (!session.isValid() || isSessionStale(session, System.currentTimeMillis())) {
-                            if (containerLog.isDebugEnabled()) {
-                                containerLog.debug("session swapped in is invalid or expired");
+                            if (containerLog.isTraceEnabled()) {
+                                containerLog.trace("session swapped in is invalid or expired");
                             }
                             session.expire();
                             store.remove(sessionId);
@@ -197,8 +187,8 @@ public class PersistentValve extends ValveBase {
                     }
                 }
             }
-            if (containerLog.isDebugEnabled()) {
-                containerLog.debug("sessionId: " + sessionId);
+            if (containerLog.isTraceEnabled()) {
+                containerLog.trace("sessionId: " + sessionId);
             }
 
             // Ask the next valve to process the request.
@@ -219,8 +209,8 @@ public class PersistentValve extends ValveBase {
                     newsessionId = hsess.getIdInternal();
                 }
 
-                if (containerLog.isDebugEnabled()) {
-                    containerLog.debug("newsessionId: " + newsessionId);
+                if (containerLog.isTraceEnabled()) {
+                    containerLog.trace("newsessionId: " + newsessionId);
                 }
                 if (newsessionId != null) {
                     try {
@@ -241,17 +231,17 @@ public class PersistentValve extends ValveBase {
                                 }
                             }
                             if (!stored) {
-                                if (containerLog.isDebugEnabled()) {
+                                if (containerLog.isTraceEnabled()) {
                                     containerLog
-                                            .debug("newsessionId store: " + store + " session: " + session +
+                                            .trace("newsessionId store: " + store + " session: " + session +
                                                     " valid: " +
                                                     (session == null ? "N/A" : Boolean.toString(session.isValid())) +
                                                     " stale: " + isSessionStale(session, System.currentTimeMillis()));
                                 }
                             }
                         } else {
-                            if (containerLog.isDebugEnabled()) {
-                                containerLog.debug("newsessionId Manager: " + manager);
+                            if (containerLog.isTraceEnabled()) {
+                                containerLog.trace("newsessionId Manager: " + manager);
                             }
                         }
                     } finally {
