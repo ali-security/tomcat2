@@ -16,6 +16,8 @@
  */
 package org.apache.catalina.tribes.transport;
 
+import java.io.IOException;
+
 import javax.management.ObjectName;
 
 import org.apache.catalina.tribes.Channel;
@@ -55,10 +57,6 @@ public class ReplicationTransmitter implements ChannelSender {
 
     // ------------------------------------------------------------- public
 
-    /**
-     * Send data to one member
-     * @see org.apache.catalina.tribes.ChannelSender#sendMessage(org.apache.catalina.tribes.ChannelMessage, org.apache.catalina.tribes.Member[])
-     */
     @Override
     public void sendMessage(ChannelMessage message, Member[] destination) throws ChannelException {
         MultiPointSender sender = getTransport();
@@ -72,7 +70,7 @@ public class ReplicationTransmitter implements ChannelSender {
      * @see org.apache.catalina.tribes.ChannelSender#start()
      */
     @Override
-    public void start() throws java.io.IOException {
+    public synchronized void start() throws IOException {
         getTransport().connect();
         // register jmx
         JmxRegistry jmxRegistry = JmxRegistry.getRegistry(channel);

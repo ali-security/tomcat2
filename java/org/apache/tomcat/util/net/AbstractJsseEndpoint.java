@@ -99,14 +99,24 @@ public abstract class AbstractJsseEndpoint<S,U> extends AbstractEndpoint<S,U> {
                 sslHostConfig.setEnabledCiphers(sslUtil.getEnabledCiphers());
             }
 
-            SSLContext sslContext;
-            try {
-                sslContext = sslUtil.createSSLContext(negotiableProtocols);
-            } catch (Exception e) {
-                throw new IllegalArgumentException(e.getMessage(), e);
+            SSLContext sslContext = certificate.getSslContext();
+            SSLContext sslContextGenerated = certificate.getSslContextGenerated();
+            // Generate the SSLContext from configuration unless (e.g. embedded) an SSLContext has been provided.
+            // Need to handle both initial configuration and reload.
+            // Initial, SSLContext provided     - sslContext will be non-null and sslContextGenerated will be null
+            // Initial, SSLContext not provided - sslContext null and sslContextGenerated will be null
+            // Reload,  SSLContext provided     - sslContext will be non-null and sslContextGenerated will be null
+            // Reload,  SSLContext not provided - sslContext non-null and equal to sslContextGenerated
+            if (sslContext == null || sslContext == sslContextGenerated) {
+                try {
+                    sslContext = sslUtil.createSSLContext(negotiableProtocols);
+                } catch (Exception e) {
+                    throw new IllegalArgumentException(e.getMessage(), e);
+                }
+
+                certificate.setSslContextGenerated(sslContext);
             }
 
-            certificate.setSslContext(sslContext);
             logCertificate(certificate);
         }
     }
@@ -202,7 +212,11 @@ public abstract class AbstractJsseEndpoint<S,U> extends AbstractEndpoint<S,U> {
     public void unbind() throws Exception {
         for (SSLHostConfig sslHostConfig : sslHostConfigs.values()) {
             for (SSLHostConfigCertificate certificate : sslHostConfig.getCertificates()) {
-                certificate.setSslContext(null);
+                /*
+                 * Only remove any generated SSLContext. If the SSLContext was provided it is left in place in case the
+                 * endpoint is re-started.
+                 */
+                certificate.setSslContextGenerated(null);
             }
         }
     }

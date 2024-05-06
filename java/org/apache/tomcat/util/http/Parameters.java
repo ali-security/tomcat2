@@ -40,7 +40,7 @@ public final class Parameters {
 
     private static final StringManager sm = StringManager.getManager("org.apache.tomcat.util.http");
 
-    private final Map<String, ArrayList<String>> paramHashValues = new LinkedHashMap<>();
+    private final Map<String,ArrayList<String>> paramHashValues = new LinkedHashMap<>();
     private boolean didQueryParameters = false;
 
     private MessageBytes queryMB;
@@ -81,8 +81,8 @@ public final class Parameters {
             charset = DEFAULT_BODY_CHARSET;
         }
         this.charset = charset;
-        if (log.isDebugEnabled()) {
-            log.debug("Set encoding to " + charset.name());
+        if (log.isTraceEnabled()) {
+            log.trace("Set encoding to " + charset.name());
         }
     }
 
@@ -92,8 +92,8 @@ public final class Parameters {
         }
         this.queryStringCharset = queryStringCharset;
 
-        if (log.isDebugEnabled()) {
-            log.debug("Set query string encoding to " + queryStringCharset.name());
+        if (log.isTraceEnabled()) {
+            log.trace("Set query string encoding to " + queryStringCharset.name());
         }
     }
 
@@ -177,15 +177,15 @@ public final class Parameters {
             return;
         }
 
-        if (log.isDebugEnabled()) {
-            log.debug("Decoding query " + decodedQuery + " " + queryStringCharset.name());
+        if (log.isTraceEnabled()) {
+            log.trace("Decoding query " + decodedQuery + " " + queryStringCharset.name());
         }
 
         try {
             decodedQuery.duplicate(queryMB);
         } catch (IOException e) {
             // Can't happen, as decodedQuery can't overflow
-            e.printStackTrace();
+            log.error(sm.getString("parameters.copyFail"), e);
         }
         processParameters(decodedQuery, queryStringCharset);
     }
@@ -227,8 +227,8 @@ public final class Parameters {
 
     private void processParameters(byte bytes[], int start, int len, Charset charset) {
 
-        if (log.isDebugEnabled()) {
-            log.debug(sm.getString("parameters.bytes", new String(bytes, start, len, DEFAULT_BODY_CHARSET)));
+        if (log.isTraceEnabled()) {
+            log.trace(sm.getString("parameters.bytes", new String(bytes, start, len, DEFAULT_BODY_CHARSET)));
         }
 
         int pos = start;
@@ -409,7 +409,7 @@ public final class Parameters {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        for (Map.Entry<String, ArrayList<String>> e : paramHashValues.entrySet()) {
+        for (Map.Entry<String,ArrayList<String>> e : paramHashValues.entrySet()) {
             sb.append(e.getKey()).append('=');
             StringUtils.join(e.getValue(), ',', sb);
             sb.append('\n');
@@ -425,6 +425,12 @@ public final class Parameters {
         IO_ERROR,
         NO_NAME,
         POST_TOO_LARGE,
+        /**
+         * Same as {@link #CLIENT_DISCONNECT}.
+         *
+         * @deprecated Unused. Will be removed in Tomcat 11.0.x onwards
+         */
+        @Deprecated
         REQUEST_BODY_INCOMPLETE,
         TOO_MANY_PARAMETERS,
         UNKNOWN,

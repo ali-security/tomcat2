@@ -38,8 +38,8 @@ public class CredentialHandlerSF extends StoreFactoryBase {
                     aElement.getClass());
 
             if (elementDesc != null) {
-                if (log.isDebugEnabled()) {
-                    log.debug(sm.getString("factory.storeTag",
+                if (log.isTraceEnabled()) {
+                    log.trace(sm.getString("factory.storeTag",
                             elementDesc.getTag(), aElement));
                 }
                 getStoreAppender().printIndent(aWriter, indent + 2);
@@ -61,16 +61,7 @@ public class CredentialHandlerSF extends StoreFactoryBase {
 
     /**
      * Store the specified CredentialHandler properties and child (CredentialHandler)
-     *
-     * @param aWriter
-     *            PrintWriter to which we are storing
-     * @param indent
-     *            Number of spaces to indent this element
-     * @param aCredentialHandler
-     *            CredentialHandler whose properties are being stored
-     *
-     * @exception Exception
-     *                if an exception occurs while storing
+     * {@inheritDoc}
      */
     @Override
     public void storeChildren(PrintWriter aWriter, int indent, Object aCredentialHandler,

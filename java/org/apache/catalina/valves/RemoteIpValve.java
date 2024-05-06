@@ -357,12 +357,6 @@ import org.apache.tomcat.util.http.parser.Host;
  * </p>
  */
 public class RemoteIpValve extends ValveBase {
-
-    /**
-     * {@link Pattern} for a comma delimited string that support whitespace characters
-     */
-    private static final Pattern commaSeparatedValuesPattern = Pattern.compile("\\s*,\\s*");
-
     /**
      * Logger
      */
@@ -373,11 +367,13 @@ public class RemoteIpValve extends ValveBase {
      *
      * @param commaDelimitedStrings The string to convert
      *
-     * @return array of String (non <code>null</code>)
+     * @return array of String (non <code>code</code>})
+     *
+     * @deprecated Unused. Will be removed in Tomcat 11.
      */
+    @Deprecated
     protected static String[] commaDelimitedListToStringArray(String commaDelimitedStrings) {
-        return (commaDelimitedStrings == null || commaDelimitedStrings.length() == 0) ? new String[0]
-                : commaSeparatedValuesPattern.split(commaDelimitedStrings);
+        return StringUtils.splitCommaSeparated(commaDelimitedStrings);
     }
 
     private String hostHeader = null;
@@ -581,9 +577,6 @@ public class RemoteIpValve extends ValveBase {
         return trustedProxies.toString();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public void invoke(Request request, Response response) throws IOException, ServletException {
         final String originalRemoteAddr = request.getRemoteAddr();
@@ -611,7 +604,7 @@ public class RemoteIpValve extends ValveBase {
                 concatRemoteIpHeaderValue.append(e.nextElement());
             }
 
-            String[] remoteIpHeaderValue = commaDelimitedListToStringArray(concatRemoteIpHeaderValue.toString());
+            String[] remoteIpHeaderValue = StringUtils.splitCommaSeparated(concatRemoteIpHeaderValue.toString());
             int idx;
             if (!isInternal) {
                 proxiesHeaderValue.addFirst(originalRemoteAddr);
@@ -710,8 +703,8 @@ public class RemoteIpValve extends ValveBase {
 
             request.setAttribute(Globals.REQUEST_FORWARDED_ATTRIBUTE, Boolean.TRUE);
 
-            if (log.isDebugEnabled()) {
-                log.debug("Incoming request " + request.getRequestURI() + " with originalRemoteAddr [" +
+            if (log.isTraceEnabled()) {
+                log.trace("Incoming request " + request.getRequestURI() + " with originalRemoteAddr [" +
                         originalRemoteAddr + "], originalRemoteHost=[" + originalRemoteHost + "], originalSecure=[" +
                         originalSecure + "], originalScheme=[" + originalScheme + "], originalServerName=[" +
                         originalServerName + "], originalServerPort=[" + originalServerPort +
@@ -721,8 +714,8 @@ public class RemoteIpValve extends ValveBase {
                         request.getServerPort() + "]");
             }
         } else {
-            if (log.isDebugEnabled()) {
-                log.debug("Skip RemoteIpValve for request " + request.getRequestURI() + " with originalRemoteAddr '" +
+            if (log.isTraceEnabled()) {
+                log.trace("Skip RemoteIpValve for request " + request.getRequestURI() + " with originalRemoteAddr '" +
                         request.getRemoteAddr() + "'");
             }
         }
@@ -772,7 +765,7 @@ public class RemoteIpValve extends ValveBase {
         if (!protocolHeaderValue.contains(",")) {
             return protocolHeaderHttpsValue.equalsIgnoreCase(protocolHeaderValue);
         }
-        String[] forwardedProtocols = commaDelimitedListToStringArray(protocolHeaderValue);
+        String[] forwardedProtocols = StringUtils.splitCommaSeparated(protocolHeaderValue);
         if (forwardedProtocols.length == 0) {
             return false;
         }

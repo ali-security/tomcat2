@@ -247,12 +247,6 @@ public class McastServiceImpl extends MembershipProviderBase {
     }
 
 
-    /**
-     * Start the service
-     * @param level 1 starts the receiver, level 2 starts the sender
-     * @throws IOException if the service fails to start
-     * @throws IllegalStateException if the service is already started
-     */
     @Override
     public synchronized void start(int level) throws IOException {
         boolean valid = false;
@@ -310,12 +304,6 @@ public class McastServiceImpl extends MembershipProviderBase {
         }
     }
 
-    /**
-     * Stops the service.
-     * @param level Stop status
-     * @return <code>true</code> if the stop is complete
-     * @throws IOException if the service fails to disconnect from the sockets
-     */
     @Override
     public synchronized boolean stop(int level) throws IOException {
         boolean valid = false;
@@ -403,7 +391,7 @@ public class McastServiceImpl extends MembershipProviderBase {
         Thread currentThread = Thread.currentThread();
         if (Arrays.equals(m.getCommand(), Member.SHUTDOWN_PAYLOAD)) {
             if (log.isDebugEnabled()) {
-                log.debug("Member has shutdown:" + m);
+                log.debug(sm.getString("mcastServiceImpl.memberShutdown", m));
             }
             membership.removeMember(m);
             t = () -> {
@@ -417,7 +405,7 @@ public class McastServiceImpl extends MembershipProviderBase {
             };
         } else if (membership.memberAlive(m)) {
             if (log.isDebugEnabled()) {
-                log.debug("Mcast add member " + m);
+                log.debug(sm.getString("mcastServiceImpl.memberAdd", m));
             }
             t = () -> {
                 String name = currentThread.getName();
@@ -445,8 +433,8 @@ public class McastServiceImpl extends MembershipProviderBase {
             for (int i=0; i<count; i++) {
                 try {
                     data[i] = buffer.extractPackage(true);
-                }catch (IllegalStateException ise) {
-                    log.debug("Unable to decode message.",ise);
+                } catch (IllegalStateException ise) {
+                    log.debug(sm.getString("mcastServiceImpl.messageError"), ise);
                 }
             }
             Runnable t = () -> {
@@ -483,7 +471,7 @@ public class McastServiceImpl extends MembershipProviderBase {
             Member[] expired = membership.expire(timeToExpiration);
             for (final Member member : expired) {
                 if (log.isDebugEnabled()) {
-                    log.debug("Mcast expire  member " + member);
+                    log.debug(sm.getString("mcastServiceImpl.memberExpire", member));
                 }
                 try {
                     Runnable t = () -> {
@@ -584,16 +572,24 @@ public class McastServiceImpl extends MembershipProviderBase {
                     //we can ignore this, as it means we have an invalid package
                     //but we will log it to debug
                     if ( log.isDebugEnabled() ) {
-                        log.debug("Invalid member mcast package.",ax);
+                        log.debug(sm.getString("mcastServiceImpl.invalidMemberPackage"), ax);
                     }
                 } catch ( Exception x ) {
                     if (errorCounter==0 && doRunReceiver) {
                         log.warn(sm.getString("mcastServiceImpl.error.receiving"),x);
                     } else if (log.isDebugEnabled()) {
-                        log.debug("Error receiving mcast package"+(doRunReceiver?". Sleeping 500ms":"."),x);
+                        if (doRunReceiver) {
+                            log.debug(sm.getString("mcastServiceImpl.error.receiving"), x);
+                        } else {
+                            log.warn(sm.getString("mcastServiceImpl.error.receivingNoSleep"), x);
+                        }
                     }
                     if (doRunReceiver) {
-                        try { Thread.sleep(500); } catch ( Exception ignore ){}
+                        try {
+                            sleep(500);
+                        } catch (Exception ignore){
+                            // Ignore
+                        }
                         if ( (++errorCounter)>=recoveryCounter ) {
                             errorCounter=0;
                             RecoveryThread.recover(McastServiceImpl.this);
@@ -626,14 +622,18 @@ public class McastServiceImpl extends MembershipProviderBase {
                     if (errorCounter==0) {
                         log.warn(sm.getString("mcastServiceImpl.send.failed"),x);
                     } else {
-                        log.debug("Unable to send mcast message.",x);
+                        log.debug(sm.getString("mcastServiceImpl.send.failed"),x);
                     }
                     if ( (++errorCounter)>=recoveryCounter ) {
                         errorCounter=0;
                         RecoveryThread.recover(McastServiceImpl.this);
                     }
                 }
-                try { Thread.sleep(time); } catch ( Exception ignore ) {}
+                try {
+                    sleep(time);
+                } catch (Exception ignore) {
+                    // Ignore
+                }
             }
         }
     }//class SenderThread
@@ -709,7 +709,7 @@ public class McastServiceImpl extends MembershipProviderBase {
                                         Integer.toString(++attempt),
                                         Long.toString(parent.recoverySleepTime)));
                             }
-                            Thread.sleep(parent.recoverySleepTime);
+                            sleep(parent.recoverySleepTime);
                         }
                     }catch (InterruptedException ignore) {
                     }

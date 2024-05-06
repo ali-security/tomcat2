@@ -30,11 +30,6 @@ public class LoaderSF extends StoreFactoryBase {
 
     private static Log log = LogFactory.getLog(LoaderSF.class);
 
-    /**
-     * Store the only the Loader elements, when not default
-     *
-     * @see NamingResourcesSF#storeChildren(PrintWriter, int, Object, StoreDescription)
-     */
     @Override
     public void store(PrintWriter aWriter, int indent, Object aElement)
             throws Exception {
@@ -43,9 +38,8 @@ public class LoaderSF extends StoreFactoryBase {
         if (elementDesc != null) {
             Loader loader = (Loader) aElement;
             if (!isDefaultLoader(loader)) {
-                if (log.isDebugEnabled()) {
-                    log.debug("store " + elementDesc.getTag() + "( " + aElement
-                            + " )");
+                if (log.isTraceEnabled()) {
+                    log.trace("store " + elementDesc.getTag() + "( " + aElement + " )");
                 }
                 getStoreAppender().printIndent(aWriter, indent + 2);
                 getStoreAppender().printTag(aWriter, indent + 2, loader,
@@ -53,10 +47,10 @@ public class LoaderSF extends StoreFactoryBase {
             }
         } else {
             if (log.isWarnEnabled()) {
-                log
-                        .warn("Descriptor for element"
-                                + aElement.getClass()
-                                + " not configured or element class not StandardManager!");
+                if (log.isWarnEnabled()) {
+                    log.warn(sm.getString("factory.storeNoDescriptor", aElement
+                            .getClass()));
+                }
             }
         }
     }

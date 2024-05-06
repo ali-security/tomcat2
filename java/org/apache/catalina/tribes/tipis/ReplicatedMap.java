@@ -87,7 +87,8 @@ public class ReplicatedMap<K,V> extends AbstractReplicatedMap<K,V> {
      * @param cls Class loaders
      */
     public ReplicatedMap(MapOwner owner, Channel channel, long timeout, String mapContextName, int initialCapacity, ClassLoader[] cls) {
-        super(owner,channel, timeout, mapContextName, initialCapacity, AbstractReplicatedMap.DEFAULT_LOAD_FACTOR,Channel.SEND_OPTIONS_DEFAULT, cls, true);
+        super(owner,channel, timeout, mapContextName, initialCapacity, DEFAULT_LOAD_FACTOR,
+                Channel.SEND_OPTIONS_DEFAULT, cls, true);
     }
 
     /**
@@ -99,7 +100,8 @@ public class ReplicatedMap<K,V> extends AbstractReplicatedMap<K,V> {
      * @param cls Class loaders
      */
     public ReplicatedMap(MapOwner owner, Channel channel, long timeout, String mapContextName, ClassLoader[] cls) {
-        super(owner, channel, timeout, mapContextName,AbstractReplicatedMap.DEFAULT_INITIAL_CAPACITY, AbstractReplicatedMap.DEFAULT_LOAD_FACTOR, Channel.SEND_OPTIONS_DEFAULT, cls, true);
+        super(owner, channel, timeout, mapContextName, DEFAULT_INITIAL_CAPACITY, DEFAULT_LOAD_FACTOR,
+                Channel.SEND_OPTIONS_DEFAULT, cls, true);
     }
 
     /**
@@ -112,8 +114,8 @@ public class ReplicatedMap<K,V> extends AbstractReplicatedMap<K,V> {
      * @param terminate boolean - Flag for whether to terminate this map that failed to start.
      */
     public ReplicatedMap(MapOwner owner, Channel channel, long timeout, String mapContextName, ClassLoader[] cls, boolean terminate) {
-        super(owner, channel, timeout, mapContextName,AbstractReplicatedMap.DEFAULT_INITIAL_CAPACITY,
-                AbstractReplicatedMap.DEFAULT_LOAD_FACTOR, Channel.SEND_OPTIONS_DEFAULT, cls, terminate);
+        super(owner, channel, timeout, mapContextName, DEFAULT_INITIAL_CAPACITY, DEFAULT_LOAD_FACTOR,
+                Channel.SEND_OPTIONS_DEFAULT, cls, terminate);
     }
 
 //------------------------------------------------------------------------------
@@ -129,13 +131,6 @@ public class ReplicatedMap<K,V> extends AbstractReplicatedMap<K,V> {
         return AbstractReplicatedMap.MapMessage.MSG_COPY;
     }
 
-    /**
-     * publish info about a map pair (key/value) to other nodes in the cluster
-     * @param key Object
-     * @param value Object
-     * @return Member - the backup node
-     * @throws ChannelException Cluster error
-     */
     @Override
     protected Member[] publishEntryInfo(Object key, Object value) throws ChannelException {
         if  (! (key instanceof Serializable && value instanceof Serializable)  ) {
@@ -189,7 +184,7 @@ public class ReplicatedMap<K,V> extends AbstractReplicatedMap<K,V> {
             removed = (mapMembers.remove(member) != null );
             if (!removed) {
                 if (log.isDebugEnabled()) {
-                    log.debug("Member["+member+"] disappeared, but was not present in the map.");
+                    log.debug(sm.getString("replicatedMap.member.disappeared.unknown", member));
                 }
                 return; //the member was not part of our map.
             }

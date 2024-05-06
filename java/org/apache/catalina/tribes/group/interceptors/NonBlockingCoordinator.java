@@ -608,40 +608,24 @@ public class NonBlockingCoordinator extends ChannelInterceptorBase {
         }
     }
 
-    /**
-     * has members
-     */
     @Override
     public boolean hasMembers() {
 
         return membership.hasMembers();
     }
 
-    /**
-     * Get all current cluster members
-     * @return all members or empty array
-     */
     @Override
     public Member[] getMembers() {
 
         return membership.getMembers();
     }
 
-    /**
-     * @param mbr Member
-     * @return Member
-     */
     @Override
     public Member getMember(Member mbr) {
 
         return membership.getMember(mbr);
     }
 
-    /**
-     * Return the member that represents this node.
-     *
-     * @return Member
-     */
     @Override
     public Member getLocalMember(boolean incAlive) {
         Member local = super.getLocalMember(incAlive);
@@ -693,7 +677,7 @@ public class NonBlockingCoordinator extends ChannelInterceptorBase {
 
 
         public byte[] getHeader() {
-            return NonBlockingCoordinator.COORD_HEADER;
+            return COORD_HEADER;
         }
 
         public Member getLeader() {

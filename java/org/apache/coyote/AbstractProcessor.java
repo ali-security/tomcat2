@@ -99,13 +99,14 @@ public abstract class AbstractProcessor extends AbstractProcessorLight implement
      * @param errorState The error status details
      * @param t          The error which occurred
      */
+    @SuppressWarnings("deprecation")
     protected void setErrorState(ErrorState errorState, Throwable t) {
         if (getLog().isDebugEnabled()) {
             getLog().debug(sm.getString("abstractProcessor.setErrorState", errorState), t);
         }
         // Use the return value to avoid processing more than one async error
         // in a single async cycle.
-        boolean setError = response.setError();
+        response.setError();
         boolean blockIo = this.errorState.isIoAllowed() && !errorState.isIoAllowed();
         this.errorState = this.errorState.getMostSevere(errorState);
         // Don't change the status code for IOException since that is almost
@@ -117,7 +118,7 @@ public abstract class AbstractProcessor extends AbstractProcessorLight implement
         if (t != null) {
             request.setAttribute(RequestDispatcher.ERROR_EXCEPTION, t);
         }
-        if (blockIo && isAsync() && setError) {
+        if (blockIo && isAsync()) {
             if (asyncStateMachine.asyncError()) {
                 processSocketEvent(SocketEvent.ERROR, true);
             }
@@ -208,7 +209,7 @@ public abstract class AbstractProcessor extends AbstractProcessorLight implement
                 }
             } catch (IOException ioe) {
                 if (getLog().isDebugEnabled()) {
-                    getLog().debug("Unable to write async data.", ioe);
+                    getLog().debug(sm.getString("abstractProcessor.asyncFail"), ioe);
                 }
                 status = SocketEvent.ERROR;
                 request.setAttribute(RequestDispatcher.ERROR_EXCEPTION, ioe);
@@ -238,7 +239,7 @@ public abstract class AbstractProcessor extends AbstractProcessorLight implement
 
         RequestInfo rp = request.getRequestProcessor();
         try {
-            rp.setStage(org.apache.coyote.Constants.STAGE_SERVICE);
+            rp.setStage(Constants.STAGE_SERVICE);
             if (!getAdapter().asyncDispatch(request, response, status)) {
                 setErrorState(ErrorState.CLOSE_NOW, null);
             }
@@ -250,7 +251,7 @@ public abstract class AbstractProcessor extends AbstractProcessorLight implement
             getLog().error(sm.getString("http11processor.request.process"), t);
         }
 
-        rp.setStage(org.apache.coyote.Constants.STAGE_ENDED);
+        rp.setStage(Constants.STAGE_ENDED);
 
         SocketState state;
 
@@ -264,8 +265,8 @@ public abstract class AbstractProcessor extends AbstractProcessorLight implement
             state = dispatchEndRequest();
         }
 
-        if (getLog().isDebugEnabled()) {
-            getLog().debug("Socket: [" + socketWrapper + "], Status in: [" + status + "], State out: [" + state + "]");
+        if (getLog().isTraceEnabled()) {
+            getLog().trace("Socket: [" + socketWrapper + "], Status in: [" + status + "], State out: [" + state + "]");
         }
 
         return state;
@@ -1003,6 +1004,7 @@ public abstract class AbstractProcessor extends AbstractProcessorLight implement
     protected abstract SocketState dispatchEndRequest() throws IOException;
 
 
+    @SuppressWarnings("deprecation")
     @Override
     protected final void logAccess(SocketWrapperBase<?> socketWrapper) throws IOException {
         // Set the socket wrapper so the access log can read the socket related

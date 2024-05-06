@@ -462,7 +462,7 @@ public class RemoteIpFilter extends GenericFilter {
 
     public static class XForwardedRequest extends HttpServletRequestWrapper {
 
-        protected final Map<String, List<String>> headers;
+        protected final Map<String,List<String>> headers;
 
         protected String localName;
 
@@ -513,15 +513,15 @@ public class RemoteIpFilter extends GenericFilter {
 
         @Override
         public String getHeader(String name) {
-            Map.Entry<String, List<String>> header = getHeaderEntry(name);
+            Map.Entry<String,List<String>> header = getHeaderEntry(name);
             if (header == null || header.getValue() == null || header.getValue().isEmpty()) {
                 return null;
             }
             return header.getValue().get(0);
         }
 
-        protected Map.Entry<String, List<String>> getHeaderEntry(String name) {
-            for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
+        protected Map.Entry<String,List<String>> getHeaderEntry(String name) {
+            for (Map.Entry<String,List<String>> entry : headers.entrySet()) {
                 if (entry.getKey().equalsIgnoreCase(name)) {
                     return entry;
                 }
@@ -536,7 +536,7 @@ public class RemoteIpFilter extends GenericFilter {
 
         @Override
         public Enumeration<String> getHeaders(String name) {
-            Map.Entry<String, List<String>> header = getHeaderEntry(name);
+            Map.Entry<String,List<String>> header = getHeaderEntry(name);
             if (header == null || header.getValue() == null) {
                 return Collections.enumeration(Collections.<String>emptyList());
             }
@@ -588,7 +588,7 @@ public class RemoteIpFilter extends GenericFilter {
         }
 
         public void removeHeader(String name) {
-            Map.Entry<String, List<String>> header = getHeaderEntry(name);
+            Map.Entry<String,List<String>> header = getHeaderEntry(name);
             if (header != null) {
                 headers.remove(header.getKey());
             }
@@ -596,7 +596,7 @@ public class RemoteIpFilter extends GenericFilter {
 
         public void setHeader(String name, String value) {
             List<String> values = Collections.singletonList(value);
-            Map.Entry<String, List<String>> header = getHeaderEntry(name);
+            Map.Entry<String,List<String>> header = getHeaderEntry(name);
             if (header == null) {
                 headers.put(name, values);
             } else {
@@ -657,11 +657,6 @@ public class RemoteIpFilter extends GenericFilter {
     }
 
 
-    /**
-     * {@link Pattern} for a comma delimited string that support whitespace characters
-     */
-    private static final Pattern commaSeparatedValuesPattern = Pattern.compile("\\s*,\\s*");
-
     protected static final String HTTP_SERVER_PORT_PARAMETER = "httpServerPort";
 
     protected static final String HTTPS_SERVER_PORT_PARAMETER = "httpsServerPort";
@@ -699,10 +694,12 @@ public class RemoteIpFilter extends GenericFilter {
      * @param commaDelimitedStrings The string to split
      *
      * @return array of patterns (non <code>null</code>)
+     *
+     * @deprecated Unused. Will be removed in Tomcat 11 onwards.
      */
+    @Deprecated
     protected static String[] commaDelimitedListToStringArray(String commaDelimitedStrings) {
-        return (commaDelimitedStrings == null || commaDelimitedStrings.length() == 0) ? new String[0]
-                : commaSeparatedValuesPattern.split(commaDelimitedStrings);
+        return StringUtils.splitCommaSeparated(commaDelimitedStrings);
     }
 
     /**
@@ -745,8 +742,8 @@ public class RemoteIpFilter extends GenericFilter {
     /**
      * @see #setInternalProxies(String)
      */
-    private Pattern internalProxies = Pattern
-            .compile("10\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}|" + "192\\.168\\.\\d{1,3}\\.\\d{1,3}|" +
+    private Pattern internalProxies =
+            Pattern.compile("10\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}|" + "192\\.168\\.\\d{1,3}\\.\\d{1,3}|" +
                     "169\\.254\\.\\d{1,3}\\.\\d{1,3}|" + "127\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}|" +
                     "100\\.6[4-9]{1}\\.\\d{1,3}\\.\\d{1,3}|" + "100\\.[7-9]{1}\\d{1}\\.\\d{1,3}\\.\\d{1,3}|" +
                     "100\\.1[0-1]{1}\\d{1}\\.\\d{1,3}\\.\\d{1,3}|" + "100\\.12[0-7]{1}\\.\\d{1,3}\\.\\d{1,3}|" +
@@ -808,7 +805,7 @@ public class RemoteIpFilter extends GenericFilter {
                 concatRemoteIpHeaderValue.append(e.nextElement());
             }
 
-            String[] remoteIpHeaderValue = commaDelimitedListToStringArray(concatRemoteIpHeaderValue.toString());
+            String[] remoteIpHeaderValue = StringUtils.splitCommaSeparated(concatRemoteIpHeaderValue.toString());
             int idx;
             if (!isInternal) {
                 proxiesHeaderValue.addFirst(request.getRemoteAddr());
@@ -906,8 +903,8 @@ public class RemoteIpFilter extends GenericFilter {
             }
             request.setAttribute(Globals.REQUEST_FORWARDED_ATTRIBUTE, Boolean.TRUE);
 
-            if (log.isDebugEnabled()) {
-                log.debug("Incoming request " + request.getRequestURI() + " with originalRemoteAddr [" +
+            if (log.isTraceEnabled()) {
+                log.trace("Incoming request " + request.getRequestURI() + " with originalRemoteAddr [" +
                         request.getRemoteAddr() + "], originalRemoteHost=[" + request.getRemoteHost() +
                         "], originalSecure=[" + request.isSecure() + "], originalScheme=[" + request.getScheme() +
                         "], originalServerName=[" + request.getServerName() + "], originalServerPort=[" +
@@ -926,8 +923,8 @@ public class RemoteIpFilter extends GenericFilter {
             }
             chain.doFilter(xRequest, response);
         } else {
-            if (log.isDebugEnabled()) {
-                log.debug("Skip RemoteIpFilter for request " + request.getRequestURI() + " with originalRemoteAddr '" +
+            if (log.isTraceEnabled()) {
+                log.trace("Skip RemoteIpFilter for request " + request.getRequestURI() + " with originalRemoteAddr '" +
                         request.getRemoteAddr() + "'");
             }
             chain.doFilter(request, response);
@@ -942,7 +939,7 @@ public class RemoteIpFilter extends GenericFilter {
         if (!protocolHeaderValue.contains(",")) {
             return protocolHeaderHttpsValue.equalsIgnoreCase(protocolHeaderValue);
         }
-        String[] forwardedProtocols = commaDelimitedListToStringArray(protocolHeaderValue);
+        String[] forwardedProtocols = StringUtils.splitCommaSeparated(protocolHeaderValue);
         if (forwardedProtocols.length == 0) {
             return false;
         }
@@ -962,8 +959,7 @@ public class RemoteIpFilter extends GenericFilter {
                 try {
                     port = Integer.parseInt(portHeaderValue);
                 } catch (NumberFormatException nfe) {
-                    log.debug("Invalid port value [" + portHeaderValue + "] provided in header [" + getPortHeader() +
-                            "]");
+                    log.debug(sm.getString("remoteIpFilter.invalidPort", portHeaderValue, getPortHeader()));
                 }
             }
         }

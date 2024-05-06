@@ -38,8 +38,8 @@ public class Rfc6265CookieProcessor extends CookieProcessorBase {
 
     private static final Log log = LogFactory.getLog(Rfc6265CookieProcessor.class);
 
-    private static final StringManager sm = StringManager
-            .getManager(Rfc6265CookieProcessor.class.getPackage().getName());
+    private static final StringManager sm =
+            StringManager.getManager(Rfc6265CookieProcessor.class.getPackage().getName());
 
     private static final BitSet domainValid = new BitSet(128);
 
@@ -82,12 +82,12 @@ public class Rfc6265CookieProcessor extends CookieProcessorBase {
                     if (log.isDebugEnabled()) {
                         Exception e = new Exception();
                         // TODO: Review this in light of HTTP/2
-                        log.debug("Cookies: Parsing cookie as String. Expected bytes.", e);
+                        log.debug(sm.getString("rfc6265CookieProcessor.expectedBytes"), e);
                     }
                     cookieValue.toBytes();
                 }
-                if (log.isDebugEnabled()) {
-                    log.debug("Cookies: Parsing b[]: " + cookieValue.toString());
+                if (log.isTraceEnabled()) {
+                    log.trace("Cookies: Parsing b[]: " + cookieValue.toString());
                 }
                 ByteChunk bc = cookieValue.getByteChunk();
 
@@ -177,8 +177,20 @@ public class Rfc6265CookieProcessor extends CookieProcessorBase {
             header.append(cookieSameSite);
         }
 
+        String cookiePartitioned = cookie.getAttribute(Constants.COOKIE_PARTITIONED_ATTR);
+        if (cookiePartitioned == null) {
+            if (getPartitioned()) {
+                header.append("; Partitioned");
+            }
+        } else {
+            if (Boolean.parseBoolean(cookiePartitioned)) {
+                header.append("; Partitioned");
+            }
+        }
+
+
         // Add the remaining attributes
-        for (Map.Entry<String, String> entry : cookie.getAttributes().entrySet()) {
+        for (Map.Entry<String,String> entry : cookie.getAttributes().entrySet()) {
             switch (entry.getKey()) {
                 case Constants.COOKIE_COMMENT_ATTR:
                 case Constants.COOKIE_DOMAIN_ATTR:
@@ -187,6 +199,7 @@ public class Rfc6265CookieProcessor extends CookieProcessorBase {
                 case Constants.COOKIE_SECURE_ATTR:
                 case Constants.COOKIE_HTTP_ONLY_ATTR:
                 case Constants.COOKIE_SAME_SITE_ATTR:
+                case Constants.COOKIE_PARTITIONED_ATTR:
                     // Handled above so NO-OP
                     break;
                 default: {
