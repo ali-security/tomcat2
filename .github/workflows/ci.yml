@@ -62,3 +62,9 @@ jobs:
         name: JDK${{ matrix.java }}-${{ matrix.os }}-logs
         path: output/build/logs/TEST*.txt
         retention-days: 7
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: jars
+        path: output/embed/tomcat-embed-core.jar
+        retention-days: 7
