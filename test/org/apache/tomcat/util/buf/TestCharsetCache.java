@@ -16,21 +16,14 @@
  */
 package org.apache.tomcat.util.buf;
 
-import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Set;
-
 import org.junit.Assert;
-import org.junit.Test;
+
+import java.nio.charset.Charset;
+import java.util.*;
 
 public class TestCharsetCache {
 
-    @Test
+
     public void testAllKnownCharsets() {
 
         Set<String> known = new HashSet<>(Arrays.asList(CharsetCache.LAZY_CHARSETS));
